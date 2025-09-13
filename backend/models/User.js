@@ -1,22 +1,20 @@
 import mongoose from "mongoose";
 
+// Schema con cho từng provider
+const providerSchema = new mongoose.Schema({
+  name: { type: String, required: true, enum: ["local", "google", "facebook"] },
+  providerId: { type: String }, // chỉ social login mới có providerId
+});
+
+// Schema chính cho user
 const userSchema = new mongoose.Schema(
   {
     username: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
+    email: { type: String, unique: true, sparse: true }, // có thể trống nếu social login không có email
+    password: { type: String }, // chỉ local login mới có
 
-    // Với login thường sẽ có password (hash), login Google/FB có thể để trống
-    password: { type: String },
-
-    // Dùng để phân biệt cách đăng nhập
-    provider: {
-      type: String,
-      enum: ["local", "google", "facebook"],
-      default: "local",
-    },
-
-    // ID từ Google/Facebook (nếu có)
-    providerId: { type: String },
+    // Mảng providers, mỗi provider lưu name + providerId (nếu có)
+    providers: { type: [providerSchema], default: [{ name: "local" }] },
 
     // Số xu để mua chương
     coins: { type: Number, default: 0 },
