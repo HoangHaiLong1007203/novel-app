@@ -1,24 +1,19 @@
 import express from "express";
-import { 
-  registerUser, 
-  loginUser, 
-  googleLogin, 
-  facebookLogin 
+import {
+  registerUser,
+  loginUser,
+  googleLogin,
+  facebookLogin,
+  refreshToken,
 } from "../controllers/authController.js";
-import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// Đăng ký / login thông thường
+// Auth routes
 router.post("/register", registerUser);
 router.post("/login", loginUser);
-
-// Login bằng OAuth
 router.post("/google", googleLogin);
 router.post("/facebook", facebookLogin);
-
-router.get("/me", protect, (req, res) => {
-  res.json(req.user);
-});
+router.post("/refresh", refreshToken);
 
 export default router;
