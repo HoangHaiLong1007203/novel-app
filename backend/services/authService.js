@@ -1,15 +1,20 @@
 import bcrypt from "bcryptjs";
 import User from "../models/User.js";
 import { generateAccessToken, generateRefreshToken, verifyToken } from "../utils/jwt.js";
-import { AppError } from "../middlewares/errorHandler.js"; // import AppError
+import AppError from "../middlewares/errorHandler.js"; // import AppError
 
 // Register
 export const register = async ({ username, email, password }) => {
-  // check email trước
-  const existingUser = await User.findOne({ email, "providers.name": "local" });
-  if (existingUser) throw new AppError("Email đã tồn tại", 400);
+  // Validate inputs
+  if (!username || !email || !password) {
+    throw new AppError("Username, email và password là bắt buộc", 400);
+  }
 
   try {
+    // check email trước
+    const existingUser = await User.findOne({ email, "providers.name": "local" });
+    if (existingUser) throw new AppError("Email đã tồn tại", 400);
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = await User.create({
       username,
@@ -23,23 +28,29 @@ export const register = async ({ username, email, password }) => {
       refreshToken: generateRefreshToken({ userId: newUser._id }),
     };
   } catch (err) {
-    // nếu có lỗi khi hash hoặc create thì sẽ không tạo user
+    // nếu có lỗi khi hash, find, hoặc create thì sẽ không tạo user
+    if (err instanceof AppError) throw err;
     throw new AppError("Đăng ký thất bại: " + err.message, 500);
   }
 };
 
 // Login thường
 export const login = async ({ email, password }) => {
-  const user = await User.findOne({ email, "providers.name": "local" });
-  if (!user || !user.password) throw new AppError("Sai email hoặc mật khẩu", 401);
+  try {
+    const user = await User.findOne({ email, "providers.name": "local" });
+    if (!user || !user.password) throw new AppError("Sai email hoặc mật khẩu", 401);
 
-  const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) throw new AppError("Sai email hoặc mật khẩu", 401);
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) throw new AppError("Sai email hoặc mật khẩu", 401);
 
-  return {
-    accessToken: generateAccessToken({ userId: user._id }),
-    refreshToken: generateRefreshToken({ userId: user._id }),
-  };
+    return {
+      accessToken: generateAccessToken({ userId: user._id }),
+      refreshToken: generateRefreshToken({ userId: user._id }),
+    };
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    throw new AppError("Đăng nhập thất bại: " + err.message, 500);
+  }
 };
 
 // Google login
@@ -85,4 +96,17 @@ export const refresh = async (token) => {
   } catch {
     throw new AppError("Refresh token không hợp lệ", 401);
   }
+};
+
+export const getCurrentUser = async (userId) => {
+  const user = await User.findById(userId).select("-password");
+  if (!user) {
+    throw new AppError("User not found", 404);
+  }
+  return user;
+};
+
+export const logoutUser = async () => {
+  // Stateless logout: chỉ để client xóa token
+  return { message: "Logged out successfully" };
 };

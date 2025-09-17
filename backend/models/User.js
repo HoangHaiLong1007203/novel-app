@@ -18,6 +18,9 @@ const userSchema = new mongoose.Schema(
 
     // Số xu để mua chương
     coins: { type: Number, default: 0 },
+
+    // Avatar URL
+    avatarUrl: { type: String, default: "" },
   },
   { timestamps: true }
 );

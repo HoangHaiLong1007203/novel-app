@@ -5,7 +5,6 @@ class AppError extends Error {
     super(message);
     this.statusCode = statusCode || 500;
     this.isOperational = true; // đánh dấu lỗi do dev/validation, không phải lỗi system
-    Error.captureStackTrace(this, this.constructor);
   }
 }
 
@@ -13,7 +12,7 @@ function errorHandler(err, req, res, next) {
   console.error(err); // log toàn bộ stack trace để dev debug
 
   // Nếu là lỗi do người dùng (throw AppError)
-  if (err.isOperational) {
+  if (err.statusCode) {
     return res.status(err.statusCode).json({
       success: false,
       error: err.message,
@@ -36,6 +35,14 @@ function errorHandler(err, req, res, next) {
     });
   }
 
+  // Nếu là lỗi database (MongoDB)
+  if (err.name === 'CastError' || err.name === 'MongoError') {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid data or database error',
+    });
+  }
+
   // Lỗi không xác định khác (server error)
   res.status(500).json({
     success: false,
@@ -43,4 +50,5 @@ function errorHandler(err, req, res, next) {
   });
 }
 
-export { AppError, errorHandler };
+export default AppError;
+export { errorHandler };

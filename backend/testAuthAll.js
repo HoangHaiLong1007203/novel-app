@@ -94,6 +94,28 @@ const testAuthAll = async () => {
     console.log("Protected route lỗi:", err.response?.data || err.message);
   }
 
+  // --- 7️⃣ Test /me endpoint ---
+  console.log("\n--- Test /me Endpoint ---");
+  try {
+    const res = await axios.get(`${BASE_URL}/me`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    console.log("/me thành công:", res.data);
+  } catch (err) {
+    console.log("/me lỗi:", err.response?.data || err.message);
+  }
+
+  // --- 8️⃣ Test /logout endpoint ---
+  console.log("\n--- Test /logout Endpoint ---");
+  try {
+    const res = await axios.post(`${BASE_URL}/logout`, {}, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    console.log("/logout thành công:", res.data);
+  } catch (err) {
+    console.log("/logout lỗi:", err.response?.data || err.message);
+  }
+
   // --- Clean up: Xoá các user test ---
   await User.deleteMany({ email: { $in: [email, googleEmail, fbEmail] } });
   console.log("\n✅ Xoá tất cả user test xong");

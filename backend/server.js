@@ -25,10 +25,10 @@ app.get("/api/protected", authMiddleware, (req, res) => {
   res.json({ message: "Bạn đã auth thành công!", user: req.user });
 });
 
+// ⚠️ đặt errorHandler **sau tất cả routes và middleware**
+app.use(errorHandler);
+
 // Connect MongoDB & Start server
 connectDB().then(() => {
   app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 });
-
-// ⚠️ đặt errorHandler **sau tất cả routes và middleware**
-app.use(errorHandler);

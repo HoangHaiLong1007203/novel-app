@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { AppError } from "./errorHandler.js";
+import AppError from "./errorHandler.js";
 
 export const authMiddleware = (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -15,7 +15,7 @@ export const authMiddleware = (req, res, next) => {
     req.user = decoded; // chứa userId
     next();
   } catch (err) {
-    return next(new AppError("Token không hợp lệ hoặc đã hết hạn", 403));
+    return next(new AppError("Token không hợp lệ hoặc đã hết hạn", 401));
   }
 };
 export default authMiddleware;
