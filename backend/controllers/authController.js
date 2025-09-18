@@ -91,3 +91,23 @@ export const uploadAvatar = async (req, res, next) => {
     next(error);
   }
 };
+
+export const changeUsername = async (req, res, next) => {
+  try {
+    const { newUsername } = req.body;
+    const user = await authService.changeUsername(req.user.userId, newUsername);
+    res.json({ message: "Username changed successfully", user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const changePassword = async (req, res, next) => {
+  try {
+    const { newPassword } = req.body;
+    const user = await authService.changePassword(req.user.userId, newPassword);
+    res.json({ message: "Password changed successfully", user });
+  } catch (err) {
+    next(err);
+  }
+};

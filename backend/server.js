@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import authRoutes from "./routes/auth.js";
+import novelRoutes from "./routes/novel.js";
 import { connectDB } from "./config/db.js";
 import { errorHandler } from "./middlewares/errorHandler.js"; // chú ý đường dẫn đúng
 import authMiddleware from "./middlewares/authMiddleware.js"
@@ -16,6 +17,7 @@ app.use(express.json());
 
 // Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/novels", novelRoutes);
 
 // Test route
 app.get("/api/ping", (req, res) => {

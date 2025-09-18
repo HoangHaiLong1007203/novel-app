@@ -53,6 +53,32 @@ const testAuthAll = async () => {
     console.log("Login lỗi:", err.response?.data || err.message);
   }
 
+  // --- 2.1️⃣ Test Change Username ---
+  console.log("\n--- Test Change Username ---");
+  try {
+    const res = await axios.put(`${BASE_URL}/change-username`, {
+      newUsername: "newtestuser"
+    }, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    console.log("Change username thành công:", res.data);
+  } catch (err) {
+    console.log("Change username lỗi:", err.response?.data || err.message);
+  }
+
+  // --- 2.2️⃣ Test Change Password ---
+  console.log("\n--- Test Change Password ---");
+  try {
+    const res = await axios.put(`${BASE_URL}/change-password`, {
+      newPassword: "newpassword123"
+    }, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    console.log("Change password thành công:", res.data);
+  } catch (err) {
+    console.log("Change password lỗi:", err.response?.data || err.message);
+  }
+
   // --- 3️⃣ Test Google Login ---
   console.log("\n--- Test Google Login ---");
   const googleEmail = randomEmail("googleuser");

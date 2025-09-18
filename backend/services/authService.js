@@ -110,3 +110,48 @@ export const logoutUser = async () => {
   // Stateless logout: chỉ để client xóa token
   return { message: "Logged out successfully" };
 };
+
+// Validate username: trim spaces, check uniqueness
+export const changeUsername = async (userId, newUsername) => {
+  if (!newUsername || typeof newUsername !== "string") {
+    throw new AppError("Username không hợp lệ", 400);
+  }
+  const trimmedUsername = newUsername.trim();
+  if (trimmedUsername.length === 0) {
+    throw new AppError("Username không được để trống", 400);
+  }
+  // Check trùng username (case sensitive, tiếng Việt có dấu)
+  const existingUser = await User.findOne({ username: trimmedUsername, _id: { $ne: userId } });
+  if (existingUser) {
+    throw new AppError("Username đã tồn tại", 400);
+  }
+  // Update username
+  const updatedUser = await User.findByIdAndUpdate(userId, { username: trimmedUsername }, { new: true }).select("-password");
+  if (!updatedUser) {
+    throw new AppError("User không tồn tại", 404);
+  }
+  return updatedUser;
+};
+
+// Validate password: min 6, max 128, có ít nhất 1 chữ và 1 số, không dấu cách
+const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d!@#$%^&*()_+\-=[\]{};':"\\|,.<>\/?]{6,128}$/;
+
+export const changePassword = async (userId, newPassword) => {
+  if (!newPassword || typeof newPassword !== "string") {
+    throw new AppError("Password không hợp lệ", 400);
+  }
+  if (newPassword.length < 6 || newPassword.length > 128) {
+    throw new AppError("Password phải từ 6 đến 128 ký tự", 400);
+  }
+  if (!passwordRegex.test(newPassword)) {
+    throw new AppError("Password phải bao gồm ít nhất một chữ cái và một số, không có dấu cách", 400);
+  }
+  // Hash password
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  // Update password
+  const updatedUser = await User.findByIdAndUpdate(userId, { password: hashedPassword }, { new: true }).select("-password");
+  if (!updatedUser) {
+    throw new AppError("User không tồn tại", 404);
+  }
+  return updatedUser;
+};
