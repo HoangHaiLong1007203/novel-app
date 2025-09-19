@@ -8,6 +8,7 @@ import {
 } from "../controllers/novelController.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
 import { handleCoverUpload } from "../middlewares/uploadMiddleware.js";
+import chapterRouter from "./chapter.js";
 
 const router = express.Router();
 
@@ -25,5 +26,8 @@ router.put("/:id", authMiddleware, handleCoverUpload, updateNovel);
 
 // Xóa truyện (chỉ poster)
 router.delete("/:id", authMiddleware, deleteNovel);
+
+// Routes cho chapters
+router.use("/:novelId/chapters", chapterRouter);
 
 export default router;

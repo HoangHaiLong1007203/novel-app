@@ -130,6 +130,7 @@ const testGetNovels = async () => {
     console.log(`✅ Retrieved ${data.novels.length} novels`);
     data.novels.forEach(novel => {
       console.log(`- ${novel.title} by ${novel.author.username}, status: ${novel.status}, cover: ${novel.coverImageUrl}`);
+      console.log('Full novel info:', novel);
     });
   } else {
     console.log('❌ Get novels failed:', data.error || data.message);
@@ -144,6 +145,7 @@ const testGetNovelById = async () => {
   if (response.ok) {
     console.log('✅ Novel details retrieved:', data.novel.title);
     console.log('Cover URL:', data.novel.coverImageUrl);
+    console.log('Full novel info:', data.novel);
   } else {
     console.log('❌ Get novel by ID failed:', data.error || data.message);
   }
