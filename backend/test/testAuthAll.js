@@ -1,7 +1,7 @@
 import axios from "axios";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
-import User from "./models/User.js"; // sửa đúng đường dẫn model User
+import User from "../models/User.js"; // sửa đúng đường dẫn model User
 import jwt from "jsonwebtoken";
 
 dotenv.config();

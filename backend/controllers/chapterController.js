@@ -1,5 +1,7 @@
 import Chapter from "../models/Chapter.js";
 import Novel from "../models/Novel.js";
+import Bookmark from "../models/Bookmark.js";
+import Notification from "../models/Notification.js";
 import AppError from "../middlewares/errorHandler.js";
 
 // Tạo chapter mới
@@ -27,6 +29,31 @@ export const createChapter = async (req, res, next) => {
     });
 
     await chapter.save();
+
+    // Tạo thông báo cho các user đã bookmark truyện này
+    try {
+      const bookmarks = await Bookmark.find({ novel: novelId }).populate('user', '_id');
+      if (bookmarks.length > 0) {
+        const userIds = bookmarks.map(bookmark => bookmark.user._id);
+
+        const notificationMessage = `Truyện ${novel.title} vừa có chương mới: ${chapter.title}`;
+
+        const notifications = userIds.map(userId => ({
+          user: userId,
+          title: "Chương mới",
+          message: notificationMessage,
+          type: "new_chapter",
+          relatedNovel: novelId,
+          relatedChapter: chapter._id,
+        }));
+
+        await Notification.insertMany(notifications);
+      }
+    } catch (notificationError) {
+      // Log lỗi nhưng không làm fail request chính
+      console.error("Error creating notifications:", notificationError);
+    }
+
     res.status(201).json({ message: "Chapter đã được tạo thành công", chapter });
   } catch (error) {
     next(error);

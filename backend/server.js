@@ -3,6 +3,9 @@ import cors from "cors";
 import dotenv from "dotenv";
 import authRoutes from "./routes/auth.js";
 import novelRoutes from "./routes/novel.js";
+import chapterRoutes from "./routes/chapter.js";
+import bookmarkRoutes from "./routes/bookmark.js";
+import notificationRoutes from "./routes/notification.js";
 import { connectDB } from "./config/db.js";
 import { errorHandler } from "./middlewares/errorHandler.js"; // chú ý đường dẫn đúng
 import authMiddleware from "./middlewares/authMiddleware.js"
@@ -18,6 +21,9 @@ app.use(express.json());
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/novels", novelRoutes);
+app.use("/api/chapters", chapterRoutes);
+app.use("/api/bookmarks", bookmarkRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // Test route
 app.get("/api/ping", (req, res) => {
