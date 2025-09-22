@@ -20,19 +20,139 @@ const reviewSchema = new mongoose.Schema(
     },
     content: {
       type: String,
-      trim: true, // xóa khoảng trắng thừa
+      trim: true,
+    },
+    parentReview: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Review",
+      default: null,
+    },
+    likes: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    }],
+    editCount: {
+      type: Number,
+      default: 0,
+    },
+    lastEditedAt: {
+      type: Date,
+      default: null,
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+  }
 );
 
-// 🔒 mỗi user chỉ được review 1 lần cho 1 novel
-reviewSchema.index({ novel: 1, user: 1 }, { unique: true });
+reviewSchema.virtual('repliesCount', {
+  ref: 'Review',
+  localField: '_id',
+  foreignField: 'parentReview',
+  count: true,
+  match: { isDeleted: false }
+});
 
-// ⚡ tối ưu query lấy review theo novel
+reviewSchema.virtual('isLikedByUser').get(function(userId) {
+  if (!userId) return false;
+  return this.likes.some(id => id.toString() === userId.toString());
+});
+
+// Static method to get top-level reviews with pagination and sorting
+reviewSchema.statics.getTopLevelReviews = function(novelId, options = {}) {
+  const { page = 1, limit = 10, sort = 'newest' } = options;
+  const skip = (page - 1) * limit;
+
+  let sortOption = { createdAt: -1 }; // default newest first
+  if (sort === 'oldest') {
+    sortOption = { createdAt: 1 };
+  } else if (sort === 'highest') {
+    sortOption = { rating: -1, createdAt: -1 };
+  } else if (sort === 'lowest') {
+    sortOption = { rating: 1, createdAt: -1 };
+  }
+
+  return this.find({
+    novel: novelId,
+    parentReview: null,
+    isDeleted: false
+  })
+  .populate('user', 'username avatarUrl')
+  .sort(sortOption)
+  .skip(skip)
+  .limit(limit)
+  .exec();
+};
+
+// Static method to get replies for a review
+reviewSchema.statics.getReplies = function(reviewId, options = {}) {
+  const { page = 1, limit = 5, sort = 'oldest' } = options;
+  const skip = (page - 1) * limit;
+
+  let sortOption = { createdAt: 1 }; // default oldest first
+  if (sort === 'newest') {
+    sortOption = { createdAt: -1 };
+  }
+
+  return this.find({
+    parentReview: reviewId,
+    isDeleted: false
+  })
+  .populate('user', 'username avatarUrl')
+  .sort(sortOption)
+  .skip(skip)
+  .limit(limit)
+  .exec();
+};
+
+// Instance method to toggle like status
+reviewSchema.methods.toggleLike = function(userId) {
+  const userIdStr = userId.toString();
+  const likeIndex = this.likes.findIndex(id => id.toString() === userIdStr);
+
+  if (likeIndex > -1) {
+    // User already liked, remove like
+    this.likes.splice(likeIndex, 1);
+    return false; // was liked, now unliked
+  } else {
+    // User hasn't liked, add like
+    this.likes.push(userId);
+    return true; // was not liked, now liked
+  }
+};
+
+// Instance method to edit review content
+reviewSchema.methods.edit = function(newContent) {
+  if (this.content !== newContent.trim()) {
+    this.content = newContent.trim();
+    this.editCount += 1;
+    this.lastEditedAt = new Date();
+  }
+  return this;
+};
+
+// Instance method to soft delete review
+reviewSchema.methods.softDelete = function() {
+  this.isDeleted = true;
+  this.deletedAt = new Date();
+  return this;
+};
+
+reviewSchema.index({ novel: 1, createdAt: -1 });
+reviewSchema.index({ parentReview: 1, createdAt: 1 });
+reviewSchema.index({ user: 1, createdAt: -1 });
+reviewSchema.index({ novel: 1, user: 1 }, { unique: true });
 reviewSchema.index({ novel: 1 });
 
-const Review =
-  mongoose.models.Review || mongoose.model("Review", reviewSchema);
-
+const Review = mongoose.model("Review", reviewSchema);
 export default Review;

@@ -6,9 +6,13 @@ import novelRoutes from "./routes/novel.js";
 import chapterRoutes from "./routes/chapter.js";
 import bookmarkRoutes from "./routes/bookmark.js";
 import notificationRoutes from "./routes/notification.js";
+import commentRoutes from "./routes/comment.js";
+import reviewRoutes from "./routes/review.js";
+import readingProgressRoutes from "./routes/readingProgress.js";
 import { connectDB } from "./config/db.js";
-import { errorHandler } from "./middlewares/errorHandler.js"; // chú ý đường dẫn đúng
-import authMiddleware from "./middlewares/authMiddleware.js"
+import { errorHandler } from "./middlewares/errorHandler.js";
+import authMiddleware from "./middlewares/authMiddleware.js";
+
 dotenv.config();
 
 const app = express();
@@ -24,6 +28,9 @@ app.use("/api/novels", novelRoutes);
 app.use("/api/chapters", chapterRoutes);
 app.use("/api/bookmarks", bookmarkRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/comments", commentRoutes);
+app.use("/api/reviews", reviewRoutes);
+app.use("/api/reading-progress", readingProgressRoutes);
 
 // Test route
 app.get("/api/ping", (req, res) => {
@@ -33,7 +40,7 @@ app.get("/api/protected", authMiddleware, (req, res) => {
   res.json({ message: "Bạn đã auth thành công!", user: req.user });
 });
 
-// ⚠️ đặt errorHandler **sau tất cả routes và middleware**
+// Error handler
 app.use(errorHandler);
 
 // Connect MongoDB & Start server
