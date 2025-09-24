@@ -16,7 +16,10 @@ const reviewSchema = new mongoose.Schema(
       type: Number,
       min: 1,
       max: 5,
-      required: true,
+      required: function() {
+        // Rating is required only for top-level reviews (no parentReview)
+        return !this.parentReview;
+      },
     },
     content: {
       type: String,
@@ -63,10 +66,11 @@ reviewSchema.virtual('repliesCount', {
   match: { isDeleted: false }
 });
 
-reviewSchema.virtual('isLikedByUser').get(function(userId) {
+// Instance method to check if review is liked by user
+reviewSchema.methods.isLikedByUser = function(userId) {
   if (!userId) return false;
   return this.likes.some(id => id.toString() === userId.toString());
-});
+};
 
 // Static method to get top-level reviews with pagination and sorting
 reviewSchema.statics.getTopLevelReviews = function(novelId, options = {}) {
@@ -151,7 +155,7 @@ reviewSchema.methods.softDelete = function() {
 reviewSchema.index({ novel: 1, createdAt: -1 });
 reviewSchema.index({ parentReview: 1, createdAt: 1 });
 reviewSchema.index({ user: 1, createdAt: -1 });
-reviewSchema.index({ novel: 1, user: 1 }, { unique: true });
+reviewSchema.index({ novel: 1, user: 1, parentReview: null }, { unique: true });
 reviewSchema.index({ novel: 1 });
 
 const Review = mongoose.model("Review", reviewSchema);

@@ -163,15 +163,22 @@ const setupReadingProgress = async () => {
       });
     }
 
-    // Create reading progress record
-    const readingProgress = new ReadingProgress({
+    // Get the existing reading progress record (created by API calls above)
+    const readingProgress = await ReadingProgress.findOne({
       user: userId,
-      novel: novelId,
-      readChapters: chapterIds.slice(0, 4), // First 4 chapter IDs
-      totalChaptersRead: 4,
-      completionPercentage: 80,
-      canReview: true,
+      novel: novelId
     });
+
+    if (!readingProgress) {
+      throw new Error('Reading progress not found after API calls');
+    }
+
+    // Ensure the record has the correct data for review eligibility
+    readingProgress.readChapters = chapterIds.slice(0, 4); // First 4 chapter IDs
+    readingProgress.totalChaptersRead = 4;
+    readingProgress.completionPercentage = 80;
+    readingProgress.canReview = true;
+
     await readingProgress.save();
 
     console.log('✅ Reading progress setup completed (80% read)');
@@ -193,10 +200,13 @@ const testCreateReview = async () => {
 
     reviewId = reviewRes.data.review._id;
     console.log('✅ Review created successfully');
+    console.log('Review ID:', reviewId);
     console.log('Review rating:', reviewRes.data.review.rating);
     console.log('Review content:', reviewRes.data.review.content);
+    console.log('Full review response:', JSON.stringify(reviewRes.data, null, 2));
   } catch (err) {
     console.log('❌ Create review failed:', err.response?.data || err.message);
+    console.log('Full error:', err);
   }
 };
 
@@ -243,7 +253,7 @@ const testCreateReviewWithoutReading = async () => {
 const testGetReviewsByNovel = async () => {
   console.log('\n=== Test Get Reviews By Novel ===');
   try {
-    const reviewsRes = await axios.get(`${REVIEW_BASE_URL}/novel/${novelId}`);
+    const reviewsRes = await makeAuthRequest('GET', `${REVIEW_BASE_URL}/novel/${novelId}`);
 
     console.log(`✅ Retrieved ${reviewsRes.data.reviews.length} reviews`);
     reviewsRes.data.reviews.forEach(review => {
@@ -263,7 +273,7 @@ const testGetReviewsWithSorting = async () => {
 
   // Test highest rated first
   try {
-    const highestRes = await axios.get(`${REVIEW_BASE_URL}/novel/${novelId}?sort=highest`);
+    const highestRes = await makeAuthRequest('GET', `${REVIEW_BASE_URL}/novel/${novelId}?sort=highest`);
     console.log('✅ Reviews sorted by highest rating:', highestRes.data.reviews.length, 'reviews');
   } catch (err) {
     console.log('❌ Sort by highest failed:', err.response?.data || err.message);
@@ -271,7 +281,7 @@ const testGetReviewsWithSorting = async () => {
 
   // Test lowest rated first
   try {
-    const lowestRes = await axios.get(`${REVIEW_BASE_URL}/novel/${novelId}?sort=lowest`);
+    const lowestRes = await makeAuthRequest('GET', `${REVIEW_BASE_URL}/novel/${novelId}?sort=lowest`);
     console.log('✅ Reviews sorted by lowest rating:', lowestRes.data.reviews.length, 'reviews');
   } catch (err) {
     console.log('❌ Sort by lowest failed:', err.response?.data || err.message);
@@ -279,7 +289,7 @@ const testGetReviewsWithSorting = async () => {
 
   // Test oldest first
   try {
-    const oldestRes = await axios.get(`${REVIEW_BASE_URL}/novel/${novelId}?sort=oldest`);
+    const oldestRes = await makeAuthRequest('GET', `${REVIEW_BASE_URL}/novel/${novelId}?sort=oldest`);
     console.log('✅ Reviews sorted by oldest first:', oldestRes.data.reviews.length, 'reviews');
   } catch (err) {
     console.log('❌ Sort by oldest failed:', err.response?.data || err.message);
@@ -290,7 +300,7 @@ const testGetReviewsWithSorting = async () => {
 const testGetReviewsWithPagination = async () => {
   console.log('\n=== Test Get Reviews With Pagination ===');
   try {
-    const paginatedRes = await axios.get(`${REVIEW_BASE_URL}/novel/${novelId}?page=1&limit=2`);
+    const paginatedRes = await makeAuthRequest('GET', `${REVIEW_BASE_URL}/novel/${novelId}?page=1&limit=2`);
 
     console.log('✅ Pagination test successful');
     console.log(`Page ${paginatedRes.data.pagination.currentPage}/${paginatedRes.data.pagination.totalPages}`);
@@ -305,18 +315,27 @@ const testGetReviewsWithPagination = async () => {
 // Test reply to review
 const testReplyToReview = async () => {
   console.log('\n=== Test Reply To Review ===');
+  console.log('reviewId:', reviewId);
+  console.log('REVIEW_BASE_URL:', REVIEW_BASE_URL);
+
+  // Check if reviewId exists
+  if (!reviewId) {
+    console.log('❌ reviewId is empty, cannot proceed with reply test');
+    return;
+  }
+
   try {
     const replyRes = await makeAuthRequest('POST', `${REVIEW_BASE_URL}/${reviewId}/reply`, {
-      rating: 5,
       content: 'I completely agree! This novel is amazing and I love the character development.',
     });
 
     replyId = replyRes.data.reply._id;
     console.log('✅ Reply created successfully');
-    console.log('Reply rating:', replyRes.data.reply.rating);
     console.log('Reply content:', replyRes.data.reply.content);
+    console.log('Reply has rating:', replyRes.data.reply.rating !== undefined ? 'Yes' : 'No');
   } catch (err) {
     console.log('❌ Reply failed:', err.response?.data || err.message);
+    console.log('Full error:', err);
   }
 };
 
@@ -325,7 +344,6 @@ const testReplyToReviewInvalid = async () => {
   console.log('\n=== Test Reply To Review - Invalid Data ===');
   try {
     await makeAuthRequest('POST', `${REVIEW_BASE_URL}/${reviewId}/reply`, {
-      rating: 3,
       content: '', // Empty content should fail
     });
     console.log('❌ Should have failed with empty content');
@@ -431,7 +449,7 @@ const testDeleteReviewUnauthorized = async () => {
 const testGetReviewReplies = async () => {
   console.log('\n=== Test Get Review Replies ===');
   try {
-    const repliesRes = await axios.get(`${REVIEW_BASE_URL}/${reviewId}/replies`);
+    const repliesRes = await makeAuthRequest('GET', `${REVIEW_BASE_URL}/${reviewId}/replies`);
 
     console.log(`✅ Retrieved ${repliesRes.data.replies.length} replies`);
     repliesRes.data.replies.forEach(reply => {
@@ -504,7 +522,7 @@ const testDuplicateReview = async () => {
 const testNonExistentNovel = async () => {
   console.log('\n=== Test Non-existent Novel ===');
   try {
-    await axios.get(`${REVIEW_BASE_URL}/novel/507f1f77bcf86cd799439011`);
+    await makeAuthRequest('GET', `${REVIEW_BASE_URL}/novel/507f1f77bcf86cd799439011`);
     console.log('❌ Should have failed with non-existent novel');
   } catch (err) {
     if (err.response?.status === 404) {

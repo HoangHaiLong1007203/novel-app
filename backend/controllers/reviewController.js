@@ -132,15 +132,12 @@ export const getReviewsByNovel = async (req, res, next) => {
 export const replyToReview = async (req, res, next) => {
   try {
     const { reviewId } = req.params;
-    const { rating, content } = req.body;
+    const { content } = req.body;
     const userId = req.user.userId;
 
-    if (!reviewId || !rating || !content) {
-      return next(new AppError("Review ID, rating và content là bắt buộc", 400));
-    }
-
-    if (rating < 1 || rating > 5) {
-      return next(new AppError("Rating phải từ 1 đến 5", 400));
+    // Validation - chỉ cần reviewId và content cho reply
+    if (!reviewId || !content) {
+      return next(new AppError("Review ID và content là bắt buộc", 400));
     }
 
     // Verify parent review exists
@@ -149,29 +146,17 @@ export const replyToReview = async (req, res, next) => {
       return next(new AppError("Đánh giá gốc không tồn tại", 404));
     }
 
-    // Check if user already replied to this review
-    const existingReply = await Review.findOne({
-      parentReview: reviewId,
-      user: userId,
-      isDeleted: false
-    });
-
-    if (existingReply) {
-      return next(new AppError("Bạn đã trả lời đánh giá này rồi", 400));
-    }
-
-    // Create reply
+    // Tạo reply (không cần rating, không cần kiểm tra reading progress)
     const reply = new Review({
       novel: parentReview.novel,
       user: userId,
-      rating: rating,
       content: content.trim(),
       parentReview: reviewId
     });
 
     await reply.save();
 
-    // Update novel's average rating
+    // Update novel's average rating (chỉ cập nhật khi có review mới, không phải reply)
     await updateNovelAverageRating(parentReview.novel);
 
     // Populate user info for response
@@ -182,6 +167,7 @@ export const replyToReview = async (req, res, next) => {
       reply
     });
   } catch (error) {
+    console.error('Error in replyToReview:', error);
     next(error);
   }
 };
