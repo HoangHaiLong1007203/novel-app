@@ -1,12 +1,9 @@
 "use client";
 import { useState } from "react";
 import LoginPage from "./(auth)/login/page";
-export default function Page() {
-  const [open, setOpen] = useState(false);
+import { redirect } from "next/navigation";
 
-  return (
-    <div className="flex h-screen items-center justify-center">
-      <LoginPage/>
-    </div>
-  );
+export default function RootPage() {
+  const [open, setOpen] = useState(false);
+  redirect("/home");
 }
