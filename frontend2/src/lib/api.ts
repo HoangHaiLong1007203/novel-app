@@ -14,3 +14,13 @@ API.interceptors.request.use((config) => {
   }
   return config;
 });
+export async function logout() {
+  try {
+    await API.post("/api/logout");
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
+    window.location.reload();
+  } catch (err) {
+    console.error("Logout failed", err);
+  }
+}

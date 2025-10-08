@@ -1,8 +1,12 @@
+// src/types/global.d.ts
+
 interface ImportMeta {
-  glob(pattern: string, options?: { eager?: boolean }): Record<string, any>;
+  glob(
+    pattern: string,
+    options?: { eager?: boolean }
+  ): Record<string, unknown>;
 }
 
-// src/types/global.d.ts
 declare module "@/components/ui" {
   // 🪄 Import toàn bộ export thực tế từ index.ts
   export * from "@/components/ui/index";

@@ -1,8 +1,7 @@
 "use client";
 import { useState } from "react";
 import { API } from "@/lib/api";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Input, Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import type { AxiosError } from "axios";
 
@@ -16,7 +15,7 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const res = await API.post("/api/login", form);
+      const res = await API.post("/api/auth/login", form);
       localStorage.setItem("accessToken", res.data.accessToken);
       localStorage.setItem("refreshToken", res.data.refreshToken);
       router.push("/");

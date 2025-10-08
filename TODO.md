@@ -1,0 +1,4 @@
+- [x] Sửa endpoint đăng ký trong frontend2/src/app/(auth)/register/page.tsx từ /api/register thành /api/auth/register
+- [x] Thêm logic lưu token sau đăng ký thành công và chuyển hướng đến trang chủ
+- [x] Sửa endpoint đăng nhập trong frontend2/src/app/(auth)/login/page.tsx từ /api/login thành /api/auth/login (để hoàn thiện)
+- [x] Sửa CORS trong backend/server.js để cho phép credentials

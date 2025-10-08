@@ -1,109 +1,75 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
-import { useAuth } from "@/hook/useAuth";
-import Icon from "@/components/Icon";
-import {
-  Button,
+import { Button,
   DropdownMenu,
+  DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
-  Skeleton,
-} from "@/components/ui";
-import { cn } from "@/lib/utils"; // nếu chưa có file utils, có thể tạm xoá dòng này
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+  Avatar, AvatarImage, AvatarFallback
+ } from "@/components/ui";
+import { useAuth } from "@/hook/useAuth";
+import { logout } from "@/lib/api";
+import Icon from "@/components/Icon";
 
 export default function Navbar() {
   const { user, loading } = useAuth();
 
   return (
-    <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur">
-      <div className="container flex h-14 items-center justify-between px-4">
-        {/* Logo + tên */}
+    <nav className="border-b sticky top-0 z-50 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container mx-auto flex h-14 items-center justify-between px-4">
+        {/* Logo */}
         <Link href="/" className="flex items-center gap-2 font-semibold">
-          <Image
-            src="/assets/logo/logo-light.png"
-            alt="Novel App"
-            width={26}
-            height={26}
-            className="dark:hidden"
-          />
-          <Image
-            src="/assets/logo/logo-dark.png"
-            alt="Novel App"
-            width={26}
-            height={26}
-            className="hidden dark:block"
-          />
-          <span className="text-base">Novel App</span>
+          <Icon name="book" size={20} />
+          <span>Novel</span>
         </Link>
 
-        {/* Phần bên phải */}
-        <nav className="flex items-center gap-3">
-          {loading ? (
-            // Khi đang load user
-            <>
-              <Skeleton className="h-8 w-16 rounded-md" />
-              <Skeleton className="h-8 w-16 rounded-md" />
-            </>
-          ) : user ? (
-            // ✅ Nếu đã đăng nhập
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="flex items-center gap-2">
-                  {user.avatarUrl ? (
-                    <Image
-                      src={user.avatarUrl}
-                      alt={user.username}
-                      width={28}
-                      height={28}
-                      className="rounded-full object-cover"
-                    />
-                  ) : (
-                    <Icon name="user" size={20} />
-                  )}
-                  <span className="hidden sm:inline text-sm font-medium">
-                    {user.username}
-                  </span>
-                </Button>
-              </DropdownMenuTrigger>
+        {/* Menu bên phải */}
+        <div className="flex items-center gap-2">
+          {!loading && (
+            user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Avatar className="h-8 w-8 cursor-pointer">
+                    <AvatarImage src={user.avatarUrl || undefined} alt={user.username} />
+                    <AvatarFallback>{user.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                </DropdownMenuTrigger>
 
-              <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuItem asChild>
-                  <Link href="/profile" className="flex items-center gap-2">
-                    <Icon name="user" size={16} /> Hồ sơ
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/library" className="flex items-center gap-2">
-                    <Icon name="bookmark" size={16} /> Tủ truyện
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/logout" className="flex items-center gap-2 text-destructive">
-                    <Icon name="logout" size={16} /> Đăng xuất
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            // ✅ Nếu chưa đăng nhập
-            <>
-              <Link href="/auth/login">
-                <Button variant="ghost" size="sm" className="flex items-center gap-1">
-                  <Icon name="login" size={18} /> Đăng nhập
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuLabel>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{user.username}</span>
+                      <span className="text-xs text-muted-foreground">{user.email}</span>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/profile">
+                      <Icon name="user" className="mr-2" /> Hồ sơ
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={logout}>
+                    <Icon name="logout" className="mr-2" /> Đăng xuất
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <>
+                <Button variant="outline" asChild>
+                  <Link href="/login">Đăng nhập</Link>
                 </Button>
-              </Link>
-              <Link href="/auth/register">
-                <Button size="sm" className="flex items-center gap-1">
-                  <Icon name="user" size={18} /> Đăng ký
+                <Button asChild>
+                  <Link href="/register">Đăng ký</Link>
                 </Button>
-              </Link>
-            </>
+              </>
+            )
+
           )}
-        </nav>
+        </div>
       </div>
-    </header>
+    </nav>
   );
 }
