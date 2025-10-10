@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const novelSchema = new mongoose.Schema({
   title: { type: String, required: true },
-  author: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  author: { type: String, required: true },
   poster: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   type: { type: String, required: true, enum: ["sáng tác", "dịch/đăng lại"] },
   description: String,

@@ -6,7 +6,7 @@ import { Button,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
+  DropdownMenuSeparator, 
   DropdownMenuLabel,
   Avatar, AvatarImage, AvatarFallback
  } from "@/components/ui";
@@ -15,7 +15,7 @@ import { logout } from "@/lib/api";
 import Icon from "@/components/Icon";
 
 export default function Navbar() {
-  const { user, loading } = useAuth();
+  const { user, loading, setUser } = useAuth();
 
   return (
     <nav className="border-b sticky top-0 z-50 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -51,7 +51,12 @@ export default function Navbar() {
                       <Icon name="user" className="mr-2" /> Hồ sơ
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={logout}>
+                  <DropdownMenuItem asChild>
+                    <Link href="/upload">
+                      <Icon name="plus" className="mr-2" /> Đăng truyện
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { setUser(null); logout(); }}>
                     <Icon name="logout" className="mr-2" /> Đăng xuất
                   </DropdownMenuItem>
                 </DropdownMenuContent>

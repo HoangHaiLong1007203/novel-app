@@ -1,4 +1,6 @@
-- [x] Sửa endpoint đăng ký trong frontend2/src/app/(auth)/register/page.tsx từ /api/register thành /api/auth/register
-- [x] Thêm logic lưu token sau đăng ký thành công và chuyển hướng đến trang chủ
-- [x] Sửa endpoint đăng nhập trong frontend2/src/app/(auth)/login/page.tsx từ /api/login thành /api/auth/login (để hoàn thiện)
-- [x] Sửa CORS trong backend/server.js để cho phép credentials
+- [x] Change frontend upload page to append "cover" instead of "file" in FormData
+- [x] Update backend Novel model: change author to String, remove ref
+- [x] Update createNovel controller: fetch user for username in "sáng tác", set author as string
+- [x] Remove populate("author", "username") from getNovels controller
+- [x] Remove populate("author", "username") from getNovelById controller
+- [ ] Test the upload functionality

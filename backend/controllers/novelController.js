@@ -1,4 +1,5 @@
 import Novel from "../models/Novel.js";
+import User from "../models/User.js";
 import AppError from "../middlewares/errorHandler.js";
 import { uploadToCloudinary } from "../services/uploadService.js";
 
@@ -16,9 +17,14 @@ export const createNovel = async (req, res, next) => {
       return next(new AppError("Type phải là 'sáng tác' hoặc 'dịch/đăng lại'", 400));
     }
 
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return next(new AppError("User not found", 404));
+    }
+
     let novelAuthor;
     if (type === "sáng tác") {
-      novelAuthor = poster;
+      novelAuthor = user.username;
     } else {
       if (!author) {
         return next(new AppError("Author là bắt buộc cho type 'dịch/đăng lại'", 400));
@@ -69,7 +75,6 @@ export const getNovels = async (req, res, next) => {
     }
 
     const novels = await Novel.find(filter)
-      .populate("author", "username")
       .populate("poster", "username")
       .sort({ createdAt: -1 });
 
@@ -83,7 +88,6 @@ export const getNovels = async (req, res, next) => {
 export const getNovelById = async (req, res, next) => {
   try {
     const novel = await Novel.findById(req.params.id)
-      .populate("author", "username")
       .populate("poster", "username");
 
     if (!novel) {

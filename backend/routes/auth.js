@@ -21,7 +21,7 @@ router.post("/google", googleLogin);
 router.post("/facebook", facebookLogin);
 router.post("/refresh", refreshToken);
 router.get("/me", authMiddleware, me);
-router.post("/logout", authMiddleware, logout);
+router.post("/logout", logout);
 router.post("/upload-avatar", authMiddleware, handleUpload, uploadAvatar);
 
 router.put("/change-username", authMiddleware, changeUsername);
