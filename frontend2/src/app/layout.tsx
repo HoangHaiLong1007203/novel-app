@@ -1,7 +1,10 @@
+import { AuthProvider } from "@/hook/useAuth";
+import Navbar from "@/components/layout/navbar";
+import Footer from "@/components/layout/footer";
+import ThemeFavicon from "@/components/theme-favicon";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import ThemeFavicon from "@/components/theme-favicon";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,21 +23,26 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="vi" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/assets/logo/favicon-light.ico" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased flex min-h-screen flex-col`}
       >
         <ThemeFavicon />
-        {children}
+
+        {/* ✅ Bọc AuthProvider quanh toàn bộ app */}
+        <AuthProvider>
+          <Navbar />
+          <main className="flex-1 container mx-auto px-4 py-6">{children}</main>
+          <Footer />
+        </AuthProvider>
       </body>
     </html>
   );
 }
-

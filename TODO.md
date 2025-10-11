@@ -1,6 +1,7 @@
-- [x] Change frontend upload page to append "cover" instead of "file" in FormData
-- [x] Update backend Novel model: change author to String, remove ref
-- [x] Update createNovel controller: fetch user for username in "sáng tác", set author as string
-- [x] Remove populate("author", "username") from getNovels controller
-- [x] Remove populate("author", "username") from getNovelById controller
-- [ ] Test the upload functionality
+# TODO for Fixing User Uploaded Novels Display
+
+## Task: Fix the "posted stories" section on the upload page to show only the current user's novels.
+
+### Steps:
+- [x] Edit `frontend2/src/app/(user)/upload/page.tsx` to change the API query parameter from `authorId` to `poster` in the useEffect for fetching user novels.
+- [ ] Verify the change by testing the upload page (user can check if only their novels appear).

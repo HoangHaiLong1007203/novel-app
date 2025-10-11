@@ -1,27 +1,31 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { GENRES } from "@/lib/genres";
 import { API } from "@/lib/api";
 import { useAuth } from "@/hook/useAuth";
-import { Button } from "@/components/ui";
-import { Input } from "@/components/ui";
-import { Label } from "@/components/ui";
-import { Textarea } from "@/components/ui";
-import { Badge } from "@/components/ui";
+import { Button, Input, Label, Textarea } from "@/components/ui";
+import NovelCard from "@/components/novel/NovelCard";
 import Link from "next/link";
 
 type NovelType = "sáng tác" | "dịch/đăng lại";
 type NovelStatus = "còn tiếp" | "tạm ngưng" | "hoàn thành";
 
+interface Novel {
+  _id: string;
+  title: string;
+  author: string;
+  coverUrl?: string;
+}
+
 interface FormState {
   title: string;
   type: NovelType | "";
-  authorId?: string; // only for "dịch/đăng lại"
+  author: string;
   description: string;
-  genres: string[]; // selected genres
+  genres: string[];
   status: NovelStatus;
   coverFile?: File | null;
 }
@@ -34,7 +38,7 @@ export default function UploadPage() {
   const [form, setForm] = useState<FormState>({
     title: "",
     type: "",
-    authorId: "",
+    author: "",
     description: "",
     genres: [],
     status: "còn tiếp",
@@ -45,166 +49,142 @@ export default function UploadPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [userNovels, setUserNovels] = useState<Novel[]>([]);
 
-  // ---- helpers ----
   const updateField = <K extends keyof FormState>(k: K, v: FormState[K]) => {
     setForm((s) => ({ ...s, [k]: v }));
   };
 
-  const validateField = (name: keyof FormState) => {
-    const nextErrors = { ...errors };
-
-    if (name === "title") {
-      if (!form.title.trim()) {
-        nextErrors.title = "Tiêu đề là bắt buộc.";
-      } else if (form.title.trim().length < 3) {
-        nextErrors.title = "Tiêu đề phải ít nhất 3 ký tự.";
-      } else {
-        delete nextErrors.title;
-      }
+  // fetch user novels
+  useEffect(() => {
+    if (user?._id) {
+      API.get(`/api/novels?poster=${user._id}`)
+        .then((res) => setUserNovels(res.data?.novels || []))
+        .catch(() => setUserNovels([]));
     }
+  }, [user]);
 
-    if (name === "type") {
-      if (!form.type) {
-        nextErrors.type = "Vui lòng chọn loại (sáng tác / dịch/đăng lại).";
-      } else {
-        delete nextErrors.type;
-      }
+  // set author based on type
+  useEffect(() => {
+    if (form.type === "sáng tác" && user?.username) {
+      updateField("author", user.username);
+    } else if (form.type === "dịch/đăng lại") {
+      updateField("author", "");
     }
+  }, [form.type, user?.username]);
 
-    if (name === "genres") {
-      if (!form.genres || form.genres.length === 0) {
-        nextErrors.genres = "Chọn ít nhất 1 thể loại.";
-      } else {
-        delete nextErrors.genres;
-      }
+  // chuẩn hóa chữ khi blur
+  const normalizeName = (val: string) =>
+    val
+      .trim()
+      .split(/\s+/)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(" ");
+
+  const onBlurNormalize = (key: "title" | "author") => {
+    const normalized = normalizeName(form[key]);
+    updateField(key, normalized);
+    const newErrors = { ...errors };
+    if (!normalized.trim()) {
+      newErrors[key] = key === "title" ? "Vui lòng nhập tên truyện." : "Vui lòng nhập tên tác giả.";
+    } else {
+      delete newErrors[key];
     }
-
-    if (name === "authorId") {
-      if (form.type === "dịch/đăng lại") {
-        if (!form.authorId || !form.authorId.trim()) {
-          nextErrors.authorId = "Với loại 'dịch/đăng lại' cần nhập Author ID.";
-        } else {
-          delete nextErrors.authorId;
-        }
-      } else {
-        delete nextErrors.authorId;
-      }
-    }
-
-    setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+    setErrors(newErrors);
   };
 
-  const validateAll = () => {
-    // run all validators
-    validateField("title");
-    validateField("type");
-    validateField("genres");
-    validateField("authorId");
-    // after validations, check errors
-    const hasErrors = Object.keys(errors).length > 0;
-    return !hasErrors;
+  const validateTextFields = () => {
+    const next: Record<string, string> = {};
+    if (!form.title.trim()) next.title = "Vui lòng nhập tên truyện.";
+    if (!form.author.trim()) next.author = "Vui lòng nhập tên tác giả.";
+    setErrors(next);
+    return Object.keys(next).length === 0;
   };
 
-  // ---- tags multi-select ----
-  const toggleGenre = (g: string) => {
-    setForm((s) => {
-      const exists = s.genres.includes(g);
-      const next = exists ? s.genres.filter((x) => x !== g) : [...s.genres, g];
-      return { ...s, genres: next };
-    });
-    // validate immediately after toggling
-    setTimeout(() => validateField("genres"), 0);
-  };
+  const triggerFilePicker = () => fileInputRef.current?.click();
 
-  // ---- file upload handlers ----
-  const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     updateField("coverFile", f || null);
-
-    if (f) {
-      const url = URL.createObjectURL(f);
-      setPreviewUrl(url);
-    } else {
-      setPreviewUrl(null);
-    }
+    setPreviewUrl(f ? URL.createObjectURL(f) : null);
   };
 
-  const triggerFilePicker = () => {
-    fileInputRef.current?.click();
-  };
-
-  // ---- submit ----
-  const handleSubmit = async (ev: React.FormEvent) => {
-    ev.preventDefault();
-    // run all validators
-    // ensure latest errors cleared
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setErrors({});
-    const titleOk = form.title.trim().length >= 3;
-    const typeOk = !!form.type;
-    const genresOk = form.genres.length > 0;
-    const authorOk = form.type === "dịch/đăng lại" ? !!form.authorId?.trim() : true;
+    setMessage(null);
 
-    const ok = titleOk && typeOk && genresOk && authorOk;
-    if (!ok) {
-      // set errors individually
-      if (!titleOk) setErrors((e) => ({ ...e, title: "Tiêu đề không hợp lệ." }));
-      if (!typeOk) setErrors((e) => ({ ...e, type: "Vui lòng chọn loại." }));
-      if (!genresOk) setErrors((e) => ({ ...e, genres: "Chọn ít nhất 1 thể loại." }));
-      if (!authorOk) setErrors((e) => ({ ...e, authorId: "Author ID là bắt buộc cho loại này." }));
-      window.scrollTo({ top: 0, behavior: "smooth" });
+    // First: validate title, type, author
+    const basicErrors: Record<string, string> = {};
+
+    if (!form.title.trim()) basicErrors.title = "Vui lòng nhập tên truyện.";
+
+    if (!form.type) basicErrors.type = "Vui lòng chọn loại truyện.";
+
+    if (form.type !== "sáng tác" && !form.author.trim()) basicErrors.author = "Vui lòng nhập tên tác giả.";
+
+    if (Object.keys(basicErrors).length > 0) {
+      setErrors(basicErrors);
+      return;
+    }
+
+    // Second: check duplicate
+    try {
+      const { data } = await API.get("/api/novels");
+      const novels: Novel[] = data?.novels || [];
+      const exists = novels.some(
+        (n) =>
+          n.title.toLowerCase() === form.title.toLowerCase() &&
+          n.author.toLowerCase() === form.author.toLowerCase()
+      );
+      if (exists) {
+        setMessage(`Truyện "${form.title}" bởi ${form.author} đã được đăng bởi người khác.`);
+        return;
+      }
+    } catch {
+      /* ignore */
+    }
+
+    // Third: validate other fields (genres)
+    const otherErrors: Record<string, string> = {};
+
+    if (form.genres.length === 0) otherErrors.genres = "Chọn ít nhất một thể loại.";
+
+    if (Object.keys(otherErrors).length > 0) {
+      setErrors(otherErrors);
       return;
     }
 
     setSubmitting(true);
-    setMessage(null);
 
     try {
       const formData = new FormData();
       formData.append("title", form.title.trim());
       formData.append("type", form.type);
-      formData.append("description", form.description || "");
+      formData.append("author", form.author.trim());
+      formData.append("description", form.description);
       formData.append("genres", form.genres.join(","));
       formData.append("status", form.status);
-      // only include author if provided (for dịch/đăng lại)
-      if (form.type === "dịch/đăng lại" && form.authorId) {
-        formData.append("author", form.authorId.trim());
-      }
-      if (form.coverFile) {
-        formData.append("cover", form.coverFile);
-      }
+      if (form.coverFile) formData.append("cover", form.coverFile);
 
       const res = await API.post("/api/novels", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-
-      setMessage("Tạo truyện thành công.");
-      // redirect to novel detail or list
-      const createdId = res.data?.novel?._id;
-      if (createdId) {
-        router.push(`/novels/${createdId}`);
-      } else {
-        router.push("/novels");
-      }
+      router.push(`/novels/${res.data?.novel?._id || ""}`);
     } catch (err) {
-      // safer error typing
-      type AxiosErr = { response?: { data?: { message?: string } } };
-      const msg = (err as AxiosErr)?.response?.data?.message || "Tạo truyện thất bại";
-      setMessage(msg);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      const e = err as { response?: { data?: { message?: string } } };
+      setMessage(e.response?.data?.message || "Tạo truyện thất bại.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  // if not logged in, show CTA
-  if (!loading && !user) {
+  if (!loading && !user)
     return (
-      <div className="min-h-[60vh] flex items-center justify-center p-4">
+      <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center">
-          <p className="mb-4">Bạn cần đăng nhập để đăng truyện.</p>
-          <div className="flex justify-center gap-3">
+          <p>Bạn cần đăng nhập để đăng truyện.</p>
+          <div className="flex justify-center gap-3 mt-3">
             <Link href="/login" className="underline">
               Đăng nhập
             </Link>
@@ -215,159 +195,207 @@ export default function UploadPage() {
         </div>
       </div>
     );
-  }
 
   return (
-    <div className="max-w-3xl mx-auto p-4">
-      <h1 className="text-2xl font-semibold mb-4">Đăng truyện mới</h1>
-
-      {message && (
-        <div className="mb-4 rounded-md bg-muted p-3 text-sm">
-          {message}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* title */}
-        <div>
-          <Label htmlFor="title">Tiêu đề <span className="text-destructive">*</span></Label>
-          <Input
-            id="title"
-            value={form.title}
-            onChange={(e) => updateField("title", e.target.value)}
-            onBlur={() => validateField("title")}
-            placeholder="Nhập tiêu đề truyện"
-          />
-          {errors.title && <p className="text-sm text-destructive mt-1">{errors.title}</p>}
-        </div>
-
-        {/* type */}
-        <div>
-          <Label>Loại <span className="text-destructive">*</span></Label>
-          <div className="flex gap-3 mt-2">
-            {(["sáng tác", "dịch/đăng lại"] as NovelType[]).map((t) => (
-              <button
-                type="button"
-                key={t}
-                className={`px-3 py-1 rounded-md border ${
-                  form.type === t ? "border-primary bg-primary/10" : "border-neutral"
-                }`}
-                onClick={() => {
-                  updateField("type", t);
-                  // trigger validation and author requirement re-eval
-                  setTimeout(() => validateField("type"), 0);
-                }}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-          {errors.type && <p className="text-sm text-destructive mt-1">{errors.type}</p>}
-        </div>
-
-        {/* authorId (only for dịch/đăng lại) */}
-        {form.type === "dịch/đăng lại" && (
+    <div className="max-w-4xl mx-auto p-4 space-y-8">
+      {/* vùng truyện đã đăng */}
+      <div>
+        <p className="font-medium mb-2">
+          Truyện đã đăng: <span>{userNovels.length}</span>
+        </p>
+        {userNovels.length > 0 && (
           <div>
-            <Label htmlFor="authorId">Author (ID) <span className="text-destructive">*</span></Label>
-            <Input
-              id="authorId"
-              value={form.authorId}
-              onChange={(e) => updateField("authorId", e.target.value)}
-              onBlur={() => validateField("authorId")}
-              placeholder="Nhập ID tác giả (ObjectId) nếu có"
-            />
-            {errors.authorId && <p className="text-sm text-destructive mt-1">{errors.authorId}</p>}
-          </div>
-        )}
+            
+            <div className="relative">
+              <div className="flex gap-4 overflow-x-auto pb-3 scroll-smooth no-scrollbar">
+                {userNovels.map((novel) => (
+                  <div key={novel._id} className="shrink-0 w-[150px] sm:w-[180px]">
+                    <NovelCard novel={novel} />
+                  </div>
+                ))}
+              </div>
 
-        {/* description */}
-        <div>
-          <Label htmlFor="description">Mô tả</Label>
-          <Textarea
-            id="description"
-            value={form.description}
-            onChange={(e) => updateField("description", e.target.value)}
-            placeholder="Mô tả ngắn về truyện (có thể để trống)"
-            rows={5}
-          />
-        </div>
+              {/* ẩn thanh cuộn */}
+              <style>{`
+                .no-scrollbar::-webkit-scrollbar { display: none; }
+                .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+              `}</style>
 
-        {/* genres */}
-        <div>
-          <Label>Thể loại <span className="text-destructive">*</span></Label>
-          <div className="flex flex-wrap gap-2 mt-2">
-            {GENRES.map((g) => {
-              const selected = form.genres.includes(g);
-              return (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => toggleGenre(g)}
-                  onBlur={() => validateField("genres")}
-                  className={`px-3 py-1 rounded-full border text-sm transition-colors ${
-                    selected ? "border-primary bg-primary/10" : "border-neutral bg-transparent"
-                  }`}
-                >
-                  {g}
-                </button>
-              );
-            })}
-          </div>
-          {errors.genres && <p className="text-sm text-destructive mt-1">{errors.genres}</p>}
-        </div>
+              {/* overlay mờ bên phải */}
+              {userNovels.length > 4 && (
+                <div className="pointer-events-none absolute right-0 top-0 h-full w-24 bg-gradient-to-l from-white via-white/70 to-transparent" />
+              )}
 
-        {/* cover upload */}
-        <div className="flex gap-4 items-start">
-          <div>
-            <Label>Ảnh bìa</Label>
-            <div className="w-36 h-48 rounded-md border overflow-hidden bg-muted flex items-center justify-center">
-              {previewUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={previewUrl} alt="preview" className="w-full h-full object-cover" />
-              ) : (
-                <div className="px-2 text-sm text-muted-foreground text-center">
-                  Chưa có ảnh
+              {/* nút xem thêm */}
+              {userNovels.length > 4 && (
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="bg-white/70 backdrop-blur-sm"
+                    onClick={() => router.push("/me/novels")}
+                  >
+                    Xem thêm →
+                  </Button>
                 </div>
               )}
             </div>
+          </div>
+        )}
 
-            <div className="mt-2 flex gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={onPickFile}
-                className="hidden"
+      </div>
+
+      {/* form tạo truyện */}
+      <form onSubmit={handleSubmit} className="flex gap-6">
+        {/* bên trái: ảnh bìa */}
+        <div className="w-36 flex flex-col items-center gap-2">
+          <Label>Ảnh bìa</Label>
+          <div className="w-36 h-48 border rounded-md overflow-hidden flex items-center justify-center bg-muted relative">
+            {previewUrl ? (
+              <Image
+                src={previewUrl}
+                alt="preview"
+                fill
+                sizes="144px"
+                className="object-cover"
               />
-              <Button type="button" onClick={triggerFilePicker}>Chọn ảnh</Button>
-              <Button type="button" variant="ghost" onClick={() => { updateField("coverFile", null); setPreviewUrl(null); }}>
-                Bỏ
-              </Button>
+            ) : (
+              <span className="text-sm text-muted-foreground">Chưa có ảnh</span>
+            )}
+          </div>
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          <div className="flex gap-2">
+            <Button type="button" onClick={triggerFilePicker} size="sm">
+              Chọn ảnh
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                updateField("coverFile", null);
+                setPreviewUrl(null);
+              }}
+            >
+              Bỏ
+            </Button>
+          </div>
+        </div>
+
+        {/* bên phải: nội dung form */}
+        <div className="flex-1 space-y-5">
+          <div>
+            <Label>Tiêu đề *</Label>
+            <Input
+              value={form.title}
+              onChange={(e) => updateField("title", e.target.value)}
+              onBlur={() => onBlurNormalize("title")}
+              placeholder="Nhập tên truyện"
+            />
+            {errors.title && <p className="text-sm text-destructive">{errors.title}</p>}
+          </div>
+
+          <div>
+            <Label>Loại *</Label>
+            <div className="flex gap-3 mt-2">
+              {(["sáng tác", "dịch/đăng lại"] as NovelType[]).map((t) => (
+                <Button
+                  key={t}
+                  type="button"
+                  variant={form.type === t ? "default" : "outline"}
+                  onClick={() => updateField("type", t)}
+                >
+                  {t}
+                </Button>
+              ))}
+            </div>
+            {errors.type && <p className="text-sm text-destructive">{errors.type}</p>}
+          </div>
+
+          {form.type === "dịch/đăng lại" && (
+            <div>
+              <Label>Tác giả *</Label>
+              <Input
+                value={form.author}
+                onChange={(e) => updateField("author", e.target.value)}
+                onBlur={() => onBlurNormalize("author")}
+                placeholder="Nhập tên tác giả"
+              />
+              {errors.author && <p className="text-sm text-destructive">{errors.author}</p>}
+            </div>
+          )}
+
+          {form.type === "sáng tác" && (
+            <div className="text-sm text-muted-foreground">
+              Tác giả: {user?.username || "Không có tên"}
+            </div>
+          )}
+
+          <div>
+            <Label>Thể loại *</Label>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {GENRES.map((g) => (
+                <Button
+                  key={g}
+                  type="button"
+                  variant={form.genres.includes(g) ? "default" : "outline"}
+                  size="sm"
+                  onClick={() =>
+                    updateField(
+                      "genres",
+                      form.genres.includes(g)
+                        ? form.genres.filter((x) => x !== g)
+                        : [...form.genres, g]
+                    )
+                  }
+                >
+                  {g}
+                </Button>
+              ))}
+            </div>
+            {errors.genres && <p className="text-sm text-destructive">{errors.genres}</p>}
+          </div>
+
+          <div>
+            <Label>Mô tả</Label>
+            <Textarea
+              value={form.description}
+              onChange={(e) => updateField("description", e.target.value)}
+              placeholder="Mô tả ngắn (tuỳ chọn)"
+            />
+          </div>
+
+          <div>
+            <Label>Trạng thái</Label>
+            <div className="flex gap-3 mt-2">
+              {(["còn tiếp", "tạm ngưng", "hoàn thành"] as NovelStatus[]).map((s) => (
+                <Button
+                  key={s}
+                  type="button"
+                  variant={form.status === s ? "default" : "outline"}
+                  onClick={() => updateField("status", s)}
+                >
+                  {s}
+                </Button>
+              ))}
             </div>
           </div>
 
-          {/* right column: status & submit */}
-          <div className="flex-1">
-            <Label>Trạng thái</Label>
-            <div className="mt-2 flex gap-2">
-              {(["còn tiếp", "tạm ngưng", "hoàn thành"] as NovelStatus[]).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => updateField("status", s)}
-                  className={`px-3 py-1 rounded-md border ${form.status === s ? "border-primary bg-primary/10" : "border-neutral"}`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
+          {message && <p className="text-sm text-destructive">{message}</p>}
 
-            <div className="mt-6 flex gap-3">
-              <Button type="submit" disabled={submitting}>
-                {submitting ? "Đang tạo..." : "Tạo truyện"}
-              </Button>
-              <Button type="button" variant="ghost" onClick={() => router.back()}>Hủy</Button>
-            </div>
+          <div className="flex gap-3 pt-2">
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "Đang tạo..." : "Tạo truyện"}
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => router.back()}>
+              Hủy
+            </Button>
           </div>
         </div>
       </form>

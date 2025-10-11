@@ -1,12 +1,16 @@
 "use client";
-import { useState } from "react";
+
+import { useState, Suspense } from "react";
 import { API } from "@/lib/api";
 import { Input, Button } from "@/components/ui";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { AxiosError } from "axios";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get("redirect") || "/";
+
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
 
@@ -18,12 +22,11 @@ export default function LoginPage() {
       const res = await API.post("/api/auth/login", form);
       localStorage.setItem("accessToken", res.data.accessToken);
       localStorage.setItem("refreshToken", res.data.refreshToken);
-      router.push("/");
+      router.replace(redirect);
     } catch (err) {
-        const error = err as AxiosError<{ message?: string }>;
-        setError(error.response?.data?.message || "Đăng nhập thất bại");
-        }
-
+      const error = err as AxiosError<{ message?: string }>;
+      setError(error.response?.data?.message || "Đăng nhập thất bại");
+    }
   }
 
   return (
@@ -53,5 +56,14 @@ export default function LoginPage() {
         </Button>
       </form>
     </div>
+  );
+}
+
+// ✅ Bọc LoginForm trong <Suspense> khi export
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="text-center p-6">Đang tải...</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }
