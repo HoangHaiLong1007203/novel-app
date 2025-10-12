@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Button,
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator, 
+  DropdownMenuSeparator,
   DropdownMenuLabel,
   Avatar, AvatarImage, AvatarFallback
  } from "@/components/ui";
@@ -16,6 +17,7 @@ import Icon from "@/components/Icon";
 
 export default function Navbar() {
   const { user, loading, setUser } = useAuth();
+  const pathname = usePathname();
 
   return (
     <nav className="border-b sticky top-0 z-50 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -56,7 +58,7 @@ export default function Navbar() {
                       <Icon name="plus" className="mr-2" /> Đăng truyện
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setUser(null); logout(); }}>
+                  <DropdownMenuItem onClick={() => { setUser(null); logout(); if (["/upload", "/profile", "/me"].some(p => pathname.startsWith(p))) window.location.href = '/'; }}>
                     <Icon name="logout" className="mr-2" /> Đăng xuất
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -64,10 +66,10 @@ export default function Navbar() {
             ) : (
               <>
                 <Button variant="outline" asChild>
-                  <Link href="/login">Đăng nhập</Link>
+                  <Link href={`/login?redirect=${encodeURIComponent(pathname)}`}>Đăng nhập</Link>
                 </Button>
                 <Button asChild>
-                  <Link href="/register">Đăng ký</Link>
+                  <Link href={`/register?redirect=${encodeURIComponent(pathname)}`}>Đăng ký</Link>
                 </Button>
               </>
             )

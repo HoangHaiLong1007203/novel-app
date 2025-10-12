@@ -4,12 +4,14 @@ import { useState, Suspense } from "react";
 import { API } from "@/lib/api";
 import { Input, Button } from "@/components/ui";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/hook/useAuth";
 import type { AxiosError } from "axios";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") || "/";
+  const { setUser } = useAuth();
 
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
@@ -22,6 +24,9 @@ function LoginForm() {
       const res = await API.post("/api/auth/login", form);
       localStorage.setItem("accessToken", res.data.accessToken);
       localStorage.setItem("refreshToken", res.data.refreshToken);
+      // Fetch user data and update auth state
+      const userRes = await API.get("/api/auth/me");
+      setUser(userRes.data);
       router.replace(redirect);
     } catch (err) {
       const error = err as AxiosError<{ message?: string }>;
