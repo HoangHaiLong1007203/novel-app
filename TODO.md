@@ -1,14 +1,11 @@
-# TODO for Fixing User Uploaded Novels Display
+# TODO: Fix and Implement "Truyện đã đăng" Page
 
-## Task: Fix the "posted stories" section on the upload page to show only the current user's novels.
+## Backend Updates
+- [x] Enhance getNovels in novelController.js: Add aggregation for chapterCount, reviewCount, commentCount; support page, limit, type, chapterMin, chapterMax, sortBy query params.
 
-### Steps:
-- [x] Edit `frontend2/src/app/(user)/upload/page.tsx` to change the API query parameter from `authorId` to `poster` in the useEffect for fetching user novels.
-- [ ] Verify the change by testing the upload page (user can check if only their novels appear).
+## Frontend Components
+- [x] Update NovelFilter.tsx: Add type badges, sort select, fix slider with marks and 2000+ logic.
+- [x] Update page.tsx: Add filter state, server pagination, fix view modes/buttons/hover, update title with total.
 
-## Task: Extract novel creation form into reusable NovelForm component
-
-### Steps:
-- [x] Create frontend2/src/components/novel/NovelForm.tsx with extracted form logic and JSX.
-- [x] Update frontend2/src/app/(user)/upload/page.tsx to import and use NovelForm component, removing the inline form.
-- [x] Test the changes: Run dev server, navigate to upload page, verify form works identically.
+## Testing
+- [ ] Test layout responsive, pagination works, filters apply, hover effects match upload.
