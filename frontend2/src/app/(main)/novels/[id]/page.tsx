@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { API } from "@/lib/api";
 
 interface Novel {
@@ -129,27 +130,43 @@ export default function NovelDetailPage() {
           </div>
         </div>
 
-        {/* giới thiệu */}
+        {/* Tabs: Giới thiệu, Đánh giá, Comment, Danh sách chương */}
         <div className="mt-8 bg-background/60 backdrop-blur-sm rounded-xl p-4 text-foreground">
-          <h2 className="text-lg font-semibold mb-2">Giới thiệu</h2>
-          <p className="text-sm leading-relaxed whitespace-pre-line">
-            {description}
-          </p>
+          <Tabs defaultValue="gioithieu" className="w-full">
+            <TabsList className="w-full">
+              <TabsTrigger value="gioithieu" className="flex-1">Giới thiệu</TabsTrigger>
+              <TabsTrigger value="danhgia" className="flex-1">Đánh giá</TabsTrigger>
+              <TabsTrigger value="comment" className="flex-1">Comment</TabsTrigger>
+              <TabsTrigger value="chuong" className="flex-1">Danh sách chương</TabsTrigger>
+            </TabsList>
+            <TabsContent value="gioithieu">
+              <h2 className="text-lg font-semibold mb-2">Giới thiệu</h2>
+              <p className="text-sm leading-relaxed whitespace-pre-line">{description}</p>
+            </TabsContent>
+            <TabsContent value="danhgia">
+              <h2 className="text-lg font-semibold mb-2">Đánh giá</h2>
+              <div className="text-sm opacity-80">Tính năng đánh giá sẽ hiển thị ở đây.</div>
+            </TabsContent>
+            <TabsContent value="comment">
+              <h2 className="text-lg font-semibold mb-2">Bình luận</h2>
+              <div className="text-sm opacity-80">Tính năng bình luận sẽ hiển thị ở đây.</div>
+            </TabsContent>
+            <TabsContent value="chuong">
+              <h2 className="text-lg font-semibold mb-2">Danh sách chương</h2>
+              {chapters.length > 0 ? (
+                <ul className="space-y-2 text-sm max-h-64 overflow-y-auto pr-2">
+                  {chapters.map((ch) => (
+                    <li key={ch._id}>
+                      Chương {ch.chapterNumber}: {ch.title}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-sm opacity-80">Chưa có chương nào.</div>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
-
-        {/* chương mới */}
-        {chapters.length > 0 && (
-          <div className="mt-8 bg-background/60 backdrop-blur-sm rounded-xl p-4 text-foreground">
-            <h2 className="text-lg font-semibold mb-4">Chương mới</h2>
-            <ul className="space-y-2 text-sm">
-              {chapters.slice(0, 3).map((ch) => (
-                <li key={ch._id}>
-                  Chương {ch.chapterNumber}: {ch.title}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
       </div>
     </div>
   );

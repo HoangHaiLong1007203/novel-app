@@ -5,6 +5,7 @@ import {
   getNovelById,
   updateNovel,
   deleteNovel,
+  searchNovels,
 } from "../controllers/novelController.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
 import { handleCoverUpload } from "../middlewares/uploadMiddleware.js";
@@ -14,6 +15,9 @@ const router = express.Router();
 
 // Tạo truyện (chỉ user đăng nhập)
 router.post("/", authMiddleware, handleCoverUpload, createNovel);
+
+// Tìm kiếm truyện
+router.get("/search", searchNovels);
 
 // Lấy danh sách truyện (có thể lọc)
 router.get("/", getNovels);

@@ -1,0 +1,42 @@
+[
+  {
+    "title": "Đắc Nhân Tâm",
+    "author": "Dale Carnegie",
+    "type": "dịch/đăng lại",
+    "description": "Sách về nghệ thuật giao tiếp",
+    "genres": ["Tự lực", "Kỹ năng sống"],
+    "status": "hoàn thành"
+  },
+  {
+    "title": "Dạy Con Làm Giàu",
+    "author": "Robert Kiyosaki",
+    "type": "dịch/đăng lại",
+    "description": "Sách về tài chính cá nhân",
+    "genres": ["Tài chính", "Kinh doanh"],
+    "status": "hoàn thành"
+  },
+  {
+    "title": "Truyện Kiều",
+    "author": "Nguyễn Du",
+    "type": "sáng tác",
+    "description": "Truyện thơ nổi tiếng",
+    "genres": ["Văn học cổ điển"],
+    "status": "hoàn thành"
+  },
+  {
+    "title": "Tắt Đèn",
+    "author": "Ngô Tất Tố",
+    "type": "sáng tác",
+    "description": "Tiểu thuyết hiện thực",
+    "genres": ["Văn học Việt Nam"],
+    "status": "hoàn thành"
+  },
+  {
+    "title": "Đọc Vị Bất Kỳ Ai",
+    "author": "Tsutomu Miyazaki",
+    "type": "dịch/đăng lại",
+    "description": "Sách về tâm lý học",
+    "genres": ["Tâm lý", "Kỹ năng"],
+    "status": "hoàn thành"
+  }
+]

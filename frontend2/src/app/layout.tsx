@@ -1,6 +1,7 @@
 import { AuthProvider } from "@/hook/useAuth";
 import Navbar from "@/components/layout/navbar";
 import Footer from "@/components/layout/footer";
+import BottomNavbar from "@/components/layout/bottomNavbar";
 import ThemeFavicon from "@/components/theme-favicon";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -41,6 +42,7 @@ export default function RootLayout({
           <Navbar />
           <main className="flex-1 container mx-auto px-4 py-6">{children}</main>
           <Footer />
+          <BottomNavbar />
         </AuthProvider>
       </body>
     </html>

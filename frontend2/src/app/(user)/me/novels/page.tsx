@@ -45,7 +45,7 @@ export default function MyNovelsPage() {
     categories: [],
     genres: [],
     status: [],
-    chapterRange: [0, 2000],
+    chapterRange: [0, 2100],
     sortBy: null,
   });
   const [showFilter, setShowFilter] = useState(false);
@@ -66,10 +66,7 @@ export default function MyNovelsPage() {
     if (filters.chapterRange[0] > 0)
       params.append("chapterMin", filters.chapterRange[0].toString());
 
-    if (filters.chapterRange[1] >= 2100) {
-      // nghĩa là 2000+
-      params.append("chapterMaxPlus", "1");
-    } else if (filters.chapterRange[1] < 2000) {
+    if (filters.chapterRange[1] < 2100) {
       params.append("chapterMax", filters.chapterRange[1].toString());
     }
 

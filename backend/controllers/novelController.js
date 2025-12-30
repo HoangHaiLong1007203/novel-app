@@ -1,7 +1,15 @@
 import Novel from "../models/Novel.js";
 import User from "../models/User.js";
+import Chapter from "../models/Chapter.js";
+import Review from "../models/Review.js";
+import Comment from "../models/Comment.js";
+import Bookmark from "../models/Bookmark.js";
+import ReadingProgress from "../models/ReadingProgress.js";
+import Notification from "../models/Notification.js";
+import Transaction from "../models/Transaction.js";
 import AppError from "../middlewares/errorHandler.js";
 import { uploadToCloudinary } from "../services/uploadService.js";
+import { normalizeText } from "../utils/normalize.js";
 
 // Tạo truyện mới
 export const createNovel = async (req, res, next) => {
@@ -39,7 +47,9 @@ export const createNovel = async (req, res, next) => {
 
     const novel = new Novel({
       title,
+      titleNormalized: normalizeText(title),
       author: novelAuthor,
+      authorNormalized: normalizeText(novelAuthor),
       poster,
       type,
       description,
@@ -149,139 +159,84 @@ export const getNovels = async (req, res, next) => {
           from: "chapters",
           localField: "_id",
           foreignField: "novel",
-          as: "chapters"
-        }
+          as: "chapters",
+        },
       },
-      {
-        $addFields: {
-          chapterCount: { $size: "$chapters" }
-        }
-      },
+      { $addFields: { chapterCount: { $size: "$chapters" } } },
       {
         $lookup: {
           from: "reviews",
           let: { novelId: "$_id" },
           pipeline: [
             { $match: { $expr: { $and: [{ $eq: ["$novel", "$$novelId"] }, { $eq: ["$parentReview", null] }, { $eq: ["$isDeleted", false] }] } } },
-            { $count: "count" }
+            { $count: "count" },
           ],
-          as: "reviewCount"
-        }
+          as: "reviewCount",
+        },
       },
-      {
-        $addFields: {
-          reviewCount: { $ifNull: [{ $arrayElemAt: ["$reviewCount.count", 0] }, 0] }
-        }
-      },
+      { $addFields: { reviewCount: { $ifNull: [{ $arrayElemAt: ["$reviewCount.count", 0] }, 0] } } },
       {
         $lookup: {
           from: "comments",
           let: { novelId: "$_id" },
           pipeline: [
             { $match: { $expr: { $and: [{ $eq: ["$novel", "$$novelId"] }, { $eq: ["$parentComment", null] }, { $eq: ["$isDeleted", false] }] } } },
-            { $count: "count" }
+            { $count: "count" },
           ],
-          as: "commentCount"
-        }
+          as: "commentCount",
+        },
       },
-      {
-        $addFields: {
-          commentsCount: { $ifNull: [{ $arrayElemAt: ["$commentCount.count", 0] }, 0] }
-        }
-      },
+      { $addFields: { commentsCount: { $ifNull: [{ $arrayElemAt: ["$commentCount.count", 0] }, 0] } } },
       {
         $lookup: {
           from: "reviews",
           let: { novelId: "$_id" },
           pipeline: [
             { $match: { $expr: { $and: [{ $eq: ["$novel", "$$novelId"] }, { $eq: ["$parentReview", null] }, { $eq: ["$isDeleted", false] }] } } },
-            { $group: { _id: null, avgRating: { $avg: "$rating" } } }
+            { $group: { _id: null, avgRating: { $avg: "$rating" } } },
           ],
-          as: "avgRating"
-        }
+          as: "avgRating",
+        },
       },
-      {
-        $addFields: {
-          averageRating: { $ifNull: [{ $round: [{ $arrayElemAt: ["$avgRating.avgRating", 0] }, 1] }, 0] }
-        }
-      },
-      {
-        $lookup: {
-          from: "users",
-          localField: "poster",
-          foreignField: "_id",
-          as: "poster"
-        }
-      },
-      {
-        $unwind: { path: "$poster", preserveNullAndEmptyArrays: true }
-      },
-      {
-        $project: {
-          chapters: 0,
-          reviewCount: 0,
-          commentCount: 0,
-          avgRating: 0
-        }
-      }
+      { $addFields: { averageRating: { $ifNull: [{ $round: [{ $arrayElemAt: ["$avgRating.avgRating", 0] }, 1] }, 0] } } },
+      { $lookup: { from: "users", localField: "poster", foreignField: "_id", as: "poster" } },
+      { $unwind: { path: "$poster", preserveNullAndEmptyArrays: true } },
+      { $project: { chapters: 0, reviewCount: 0, commentCount: 0, avgRating: 0 } },
     ];
 
-    // Apply chapter range filter
-    if (chapterMin !== undefined || chapterMax !== undefined) {
-      const chapterFilter = {};
-      if (chapterMin !== undefined) {
-        chapterFilter.$gte = parseInt(chapterMin);
-      }
-      if (chapterMax !== undefined) {
-        if (chapterMax === "2000") {
-          chapterFilter.$gte = 2000;
-        } else {
-          chapterFilter.$lte = parseInt(chapterMax);
-        }
-      }
-      pipeline.splice(1, 0, {
-        $match: { chapterCount: chapterFilter }
-      });
-    }
-
-    // Sorting
-    let sortOption = { createdAt: -1 };
+    // Add sort with _id as tiebreaker for stable pagination
+    let sortStage = { $sort: { createdAt: -1, _id: 1 } };
     if (sortBy) {
       switch (sortBy) {
-        case "comments_asc":
-          sortOption = { commentsCount: 1 };
+        case "updated_recent":
+          sortStage = { $sort: { updatedAt: -1, _id: 1 } };
+          break;
+        case "views_desc":
+          sortStage = { $sort: { views: -1, _id: 1 } };
           break;
         case "comments_desc":
-          sortOption = { commentsCount: -1 };
-          break;
-        case "reviews_asc":
-          sortOption = { reviewCount: 1 };
+          sortStage = { $sort: { commentsCount: -1, _id: 1 } };
           break;
         case "reviews_desc":
-          sortOption = { reviewCount: -1 };
+          sortStage = { $sort: { reviewCount: -1, _id: 1 } };
           break;
-        case "rating_asc":
-          sortOption = { averageRating: 1 };
-          break;
-        case "rating_desc":
-          sortOption = { averageRating: -1 };
+        case "completed_recent":
+          // Sort by updatedAt for completed
+          sortStage = { $sort: { updatedAt: -1, _id: 1 } };
           break;
         default:
-          sortOption = { createdAt: -1 };
+          sortStage = { $sort: { createdAt: -1, _id: 1 } };
       }
     }
-    pipeline.push({ $sort: sortOption });
+    pipeline.push(sortStage);
 
-    // Pagination
-    let novels;
+    // Add pagination if needed
     if (page && limit) {
       const skip = (parseInt(page) - 1) * parseInt(limit);
-      pipeline.push({ $skip: skip });
-      pipeline.push({ $limit: parseInt(limit) });
-      novels = await Novel.aggregate(pipeline);
-    } else {
-      novels = await Novel.aggregate(pipeline);
+      pipeline.push({ $skip: skip }, { $limit: parseInt(limit) });
     }
+
+    const novels = await Novel.aggregate(pipeline);
 
     // Get total count only if pagination is requested
     if (page && limit) {
@@ -313,7 +268,8 @@ export const getNovels = async (req, res, next) => {
             chapterFilter.$lte = parseInt(chapterMax);
           }
         }
-        countPipeline.splice(1, 0, {
+        // Insert after $addFields chapterCount (after index 2)
+        countPipeline.splice(3, 0, {
           $match: { chapterCount: chapterFilter }
         });
       }
@@ -374,6 +330,7 @@ export const updateNovel = async (req, res, next) => {
 
     const { title, description, genres, status } = req.body;
     if (title) novel.title = title;
+  if (title) novel.titleNormalized = normalizeText(title);
     if (description !== undefined) novel.description = description;
     if (genres) novel.genres = genres.split(",");
     if (status !== undefined) novel.status = status;
@@ -389,7 +346,7 @@ export const updateNovel = async (req, res, next) => {
   }
 };
 
-// Xóa truyện
+// Xóa truyện (chỉ poster được xóa)
 export const deleteNovel = async (req, res, next) => {
   try {
     const novel = await Novel.findById(req.params.id);
@@ -402,8 +359,78 @@ export const deleteNovel = async (req, res, next) => {
       return next(new AppError("Bạn không có quyền xóa truyện này", 403));
     }
 
-    await Novel.findByIdAndDelete(req.params.id);
+    // Delete related documents to avoid orphan data
+    await Promise.all([
+      Chapter.deleteMany({ novel: novel._id }),
+      Review.deleteMany({ novel: novel._id }),
+      Comment.deleteMany({ novel: novel._id }),
+      Bookmark.deleteMany({ novel: novel._id }),
+      ReadingProgress.deleteMany({ novel: novel._id }),
+      Notification.deleteMany({ novel: novel._id }),
+      Transaction.deleteMany({ novel: novel._id }),
+    ]);
+
+    await Novel.findByIdAndDelete(novel._id);
+
     res.json({ message: "Truyện đã được xóa" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Tìm kiếm truyện
+export const searchNovels = async (req, res, next) => {
+  try {
+    const { q, page = 1, limit = 20 } = req.query;
+
+    if (!q) return res.json({ novels: [], pagination: { page: 1, limit: parseInt(limit), total: 0, totalPages: 0 } });
+
+    const query = String(q);
+    const queryNorm = normalizeText(query);
+    const p = Math.max(1, parseInt(String(page) || "1"));
+    const l = Math.max(1, Math.min(100, parseInt(String(limit) || "20")));
+    const skip = (p - 1) * l;
+
+    const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
+    const esc = escapeRegex(query);
+    const escNorm = escapeRegex(queryNorm);
+
+    // Pipeline: prefer exact title, then title contains, author contains,
+    // then normalized matches for diacritic-insensitive fuzzy matches.
+    const basePipeline = [
+      { $lookup: { from: "users", localField: "poster", foreignField: "_id", as: "poster" } },
+      { $unwind: { path: "$poster", preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          score: {
+            $add: [
+              { $cond: [{ $regexMatch: { input: { $ifNull: [{ $toString: "$title" }, ""] }, regex: `^${esc}$`, options: "i" } }, 100, 0] },
+              { $cond: [{ $regexMatch: { input: { $ifNull: [{ $toString: "$title" }, ""] }, regex: esc, options: "i" } }, 30, 0] },
+              { $cond: [{ $regexMatch: { input: { $ifNull: [{ $toString: "$author" }, ""] }, regex: esc, options: "i" } }, 10, 0] },
+              { $cond: [{ $regexMatch: { input: { $ifNull: [{ $toString: "$titleNormalized" }, ""] }, regex: escNorm, options: "i" } }, 3, 0] },
+              { $cond: [{ $regexMatch: { input: { $ifNull: [{ $toString: "$authorNormalized" }, ""] }, regex: escNorm, options: "i" } }, 1, 0] },
+            ],
+          },
+        },
+      },
+      { $match: { score: { $gt: 0 } } },
+      { $sort: { score: -1, updatedAt: -1 } },
+    ];
+
+    const countPipeline = [...basePipeline, { $count: "total" }];
+    const totalResult = await Novel.aggregate(countPipeline);
+    const total = totalResult[0]?.total || 0;
+
+    const novelsPipeline = [
+      ...basePipeline,
+      { $skip: skip },
+      { $limit: l },
+      { $project: { _id: 1, title: 1, author: 1, description: 1, genres: 1, coverImageUrl: 1, poster: { username: 1 }, score: 1 } },
+    ];
+
+    const novels = await Novel.aggregate(novelsPipeline);
+    const totalPages = Math.ceil(total / l);
+    res.json({ novels, pagination: { page: p, limit: l, total, totalPages } });
   } catch (error) {
     next(error);
   }
