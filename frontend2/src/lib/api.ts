@@ -42,3 +42,43 @@ export async function logout() {
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
 }
+
+export async function getUserReadingProgress(page = 1, limit = 12) {
+  const res = await API.get("/api/reading-progress", {
+    params: { page, limit },
+  });
+  return res.data;
+}
+
+export type ReaderSettingsPayload = {
+  fontSize?: number;
+  fontFamily?: string;
+  backgroundColor?: string;
+  lineHeight?: number;
+  theme?: "light" | "dark" | "sepia";
+};
+
+export async function fetchReaderSettings() {
+  const res = await API.get("/api/auth/reader-settings");
+  return res.data.settings;
+}
+
+export async function saveReaderSettings(settings: ReaderSettingsPayload) {
+  const res = await API.put("/api/auth/reader-settings", settings);
+  return res.data.settings;
+}
+
+export async function getChapterMeta(chapterId: string) {
+  const res = await API.get(`/api/chapters/${chapterId}`);
+  return res.data.chapter;
+}
+
+export async function requestChapterAccess(chapterId: string) {
+  const res = await API.get(`/api/chapters/${chapterId}/access`);
+  return res.data;
+}
+
+export async function purchaseLockedChapter(chapterId: string) {
+  const res = await API.post(`/api/chapters/${chapterId}/purchase`);
+  return res.data;
+}
