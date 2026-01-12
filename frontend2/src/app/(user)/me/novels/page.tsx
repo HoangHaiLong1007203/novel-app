@@ -4,18 +4,15 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
+// Image intentionally removed (unused)
 import { API } from "@/lib/api";
 import { useAuth } from "@/hook/useAuth";
 import NovelCard from "@/components/novel/NovelCard";
+import NovelRow from "@/components/novel/NovelRow";
 import NovelFilter from "@/components/novel/NovelFilter";
-import {
-  Button,
-  ToggleGroup,
-  ToggleGroupItem,
-  Card,
-} from "@/components/ui";
-import PaginationCompact from "@/components/ui/PaginationCompact"
+import { Button, ToggleGroup, ToggleGroupItem } from "@/components/ui";
+import PaginationCompact from "@/components/ui/PaginationCompact";
+
 interface Novel {
   _id: string;
   title: string;
@@ -49,7 +46,7 @@ export default function MyNovelsPage() {
     sortBy: null,
   });
   const [showFilter, setShowFilter] = useState(false);
-  const [isWide, setIsWide] = useState(false);
+  const [isLargeScreen, setIsLargeScreen] = useState(false);
 
   const fetchNovels = useCallback(async () => {
     if (!user?._id) return;
@@ -90,7 +87,7 @@ export default function MyNovelsPage() {
   }, [loading, user?._id, page, viewMode, filters, fetchNovels]);
 
   useEffect(() => {
-    const handleResize = () => setIsWide(window.innerWidth >= 1536);
+    const handleResize = () => setIsLargeScreen(window.innerWidth >= 1024);
     handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
@@ -122,39 +119,32 @@ export default function MyNovelsPage() {
     );
 
   return (
-    <div className="max-w-7xl mx-auto p-4 flex flex-col xl:flex-row gap-6">
+    <div className={`max-w-7xl mx-auto p-4 gap-6 ${isLargeScreen ? 'flex flex-row' : 'flex flex-col'}`}>
       {/* FILTER */}
-      {isWide ? (
-        <div className="w-[22rem] shrink-0">
-          <NovelFilter layout="vertical" onFilterChange={handleFilterChange} />
-        </div>
-      ) : (
-        <div className="w-full">
-          <div className="flex justify-between items-center mb-4">
-            <Button variant="outline" onClick={() => setShowFilter(!showFilter)}>
-              Bộ lọc ⚙️
-            </Button>
-            <ToggleGroup
-              type="single"
-              value={viewMode}
-              onValueChange={(v) => v && setViewMode(v as "card" | "row")}
-            >
-              <ToggleGroupItem value="card">🗂️</ToggleGroupItem>
-              <ToggleGroupItem value="row">📄</ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-          <div
-            className={`transition-all duration-300 overflow-hidden ${
-              showFilter ? "max-h-[1000px] opacity-100 mb-4" : "max-h-0 opacity-0"
-            }`}
-          >
-            <NovelFilter layout="horizontal" onFilterChange={handleFilterChange} />
-          </div>
-        </div>
-      )}
+      <div className={`w-full ${isLargeScreen ? 'lg:w-[22rem]' : ''} shrink-0 ${isLargeScreen || showFilter ? '' : 'hidden'}`}>
+        <NovelFilter layout="vertical" onFilterChange={handleFilterChange} />
+      </div>
 
       {/* MAIN */}
       <div className="flex-1 max-w-4xl mx-auto">
+        <div className="mb-4 flex items-center justify-between">
+          <Button
+            variant="outline"
+            onClick={() => setShowFilter(!showFilter)}
+            className={isLargeScreen ? 'hidden' : ''}
+          >
+            {showFilter ? 'Ẩn bộ lọc' : 'Hiện bộ lọc'}
+          </Button>
+          <ToggleGroup
+            type="single"
+            value={viewMode}
+            onValueChange={(v) => v && setViewMode(v as "card" | "row")}
+          >
+            <ToggleGroupItem value="card">🗂️</ToggleGroupItem>
+            <ToggleGroupItem value="row">📄</ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+
         <h1 className="text-xl font-semibold mb-4">
           Truyện đã đăng bởi {user?.username || "bạn"}: {total}
         </h1>
@@ -199,49 +189,9 @@ export default function MyNovelsPage() {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(25rem, 1fr))' }}>
             {novels.map((novel) => (
-              <Card
-                key={novel._id}
-                className="relative group p-3 hover:shadow-md transition-all overflow-hidden"
-              >
-                <div className="flex items-center gap-3">
-                  {novel.coverImageUrl && (
-                    <Image
-                      src={novel.coverImageUrl}
-                      alt={novel.title}
-                      width={64}
-                      height={80}
-                      className="object-cover rounded"
-                    />
-                  )}
-                  <div className="flex-1">
-                    <h3 className="font-medium">{novel.title}</h3>
-                    <p className="text-sm text-muted-foreground">{novel.author}</p>
-                    {!!novel.genres?.length && (
-                      <p className="text-xs text-muted-foreground">
-                        {novel.genres.join(", ")}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-all duration-300 flex justify-center items-center gap-2 rounded">
-                  <Button
-                    size="sm"
-                    className="bg-white text-black hover:bg-primary hover:text-white"
-                    onClick={() => handleRead(novel._id)}
-                  >
-                    Đọc
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="bg-white text-black hover:bg-primary hover:text-white"
-                    onClick={() => handleEdit(novel._id)}
-                  >
-                    Sửa
-                  </Button>
-                </div>
-              </Card>
+              <NovelRow key={novel._id} novel={novel as Novel} />
             ))}
           </div>
         )}

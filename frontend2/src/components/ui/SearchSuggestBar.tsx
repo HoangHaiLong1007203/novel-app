@@ -96,13 +96,25 @@ export default function SearchSuggestBar({
     <div ref={containerRef} className={cn("relative w-full max-w-xl", className)}>
       {/* Ô nhập tìm kiếm */}
       <div className="relative flex items-center">
-        <Search className="absolute left-3 w-4 h-4 text-muted-foreground pointer-events-none" />
+        <button
+          type="button"
+          aria-label="Search"
+          onClick={() => {
+            if (query.trim()) {
+              router.push(`/search?q=${encodeURIComponent(query)}`);
+              setOpen(false);
+            }
+          }}
+          className="absolute left-3 w-8 h-8 text-muted-foreground hover:text-foreground flex items-center justify-center rounded-xs border border-transparent hover:bg-gray-100 hover:border-gray-200 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring"
+        >
+          <Search className="w-4 h-4" />
+        </button>
         <Input
           ref={inputRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={placeholder}
-          className={cn("pl-9 pr-3", height)}
+          className={cn("pl-12 pr-4", height)}
           onFocus={() => results.length && setOpen(true)}
           onBlur={() => {
             setTimeout(() => {

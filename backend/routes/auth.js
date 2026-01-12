@@ -4,9 +4,14 @@ import {
   loginUser,
   googleLogin,
   facebookLogin,
-  refreshToken, me, logout, uploadAvatar,
+  refreshToken,
+  me,
+  logout,
+  uploadAvatar,
   changeUsername,
   changePassword,
+  getReaderSettings,
+  updateReaderSettings,
 } from "../controllers/authController.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
 import { handleUpload } from "../middlewares/uploadMiddleware.js";
@@ -26,5 +31,7 @@ router.post("/upload-avatar", authMiddleware, handleUpload, uploadAvatar);
 
 router.put("/change-username", authMiddleware, changeUsername);
 router.put("/change-password", authMiddleware, changePassword);
+router.get("/reader-settings", authMiddleware, getReaderSettings);
+router.put("/reader-settings", authMiddleware, updateReaderSettings);
 
 export default router;

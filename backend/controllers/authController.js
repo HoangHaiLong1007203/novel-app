@@ -111,3 +111,21 @@ export const changePassword = async (req, res, next) => {
     next(err);
   }
 };
+
+export const getReaderSettings = async (req, res, next) => {
+  try {
+    const settings = await authService.getReaderSettings(req.user.userId);
+    res.json({ settings });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateReaderSettings = async (req, res, next) => {
+  try {
+    const settings = await authService.updateReaderSettings(req.user.userId, req.body);
+    res.json({ message: "Reader settings updated", settings });
+  } catch (error) {
+    next(error);
+  }
+};

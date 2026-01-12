@@ -36,7 +36,7 @@ export default function NovelRow({ novel }: NovelRowProps) {
   };
   return (
     <Card
-      className="!flex-row flex items-start gap-4 p-3 hover:shadow-md transition-shadow cursor-pointer"
+      className="!flex-row flex items-start gap-4 p-3 hover:shadow-md transition-shadow cursor-pointer w-full max-w-4xl min-w-[25rem] mx-auto"
       onClick={handleRowClick}
       tabIndex={0}
       role="button"
@@ -50,14 +50,15 @@ export default function NovelRow({ novel }: NovelRowProps) {
         />
       </div>
 
-      <div className="flex flex-col justify-between flex-1">
+      <div className="flex flex-col justify-between flex-1 min-w-0">
         <div>
-          <span
-            className="font-semibold hover:text-primary line-clamp-1 cursor-pointer"
-            onClick={e => { e.stopPropagation(); handleRowClick(); }}
+          <Link
+            href={`/novels/${novel._id}`}
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            className="font-semibold hover:text-primary line-clamp-1"
           >
             {novel.title}
-          </span>
+          </Link>
           {novel.description && (
             <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
               {novel.description}

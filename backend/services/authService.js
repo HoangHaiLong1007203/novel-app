@@ -155,3 +155,59 @@ export const changePassword = async (userId, newPassword) => {
   }
   return updatedUser;
 };
+
+const clamp = (value, min, max) => {
+  return Math.min(max, Math.max(min, value));
+};
+
+const colorHexRegex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+const allowedThemes = ["light", "dark", "sepia"];
+const allowedFonts = ["Literata", "Space Grotesk", "Be Vietnam Pro", "Merriweather", "system"];
+
+const sanitizeReaderSettingsPayload = (payload = {}) => {
+  const sanitized = {};
+  if (payload.fontSize !== undefined) {
+    const size = Number(payload.fontSize);
+    if (!Number.isNaN(size)) {
+      sanitized.fontSize = clamp(size, 12, 28);
+    }
+  }
+  if (payload.lineHeight !== undefined) {
+    const lineHeight = Number(payload.lineHeight);
+    if (!Number.isNaN(lineHeight)) {
+      sanitized.lineHeight = clamp(lineHeight, 1.2, 2.4);
+    }
+  }
+  if (payload.fontFamily && allowedFonts.includes(payload.fontFamily)) {
+    sanitized.fontFamily = payload.fontFamily;
+  }
+  if (payload.theme && allowedThemes.includes(payload.theme)) {
+    sanitized.theme = payload.theme;
+  }
+  if (payload.backgroundColor && typeof payload.backgroundColor === "string") {
+    if (colorHexRegex.test(payload.backgroundColor)) {
+      sanitized.backgroundColor = payload.backgroundColor;
+    }
+  }
+  return sanitized;
+};
+
+export const getReaderSettings = async (userId) => {
+  const user = await User.findById(userId).select("readerSettings");
+  if (!user) {
+    throw new AppError("User không tồn tại", 404);
+  }
+  return user.readerSettings || {};
+};
+
+export const updateReaderSettings = async (userId, payload) => {
+  const sanitized = sanitizeReaderSettingsPayload(payload);
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new AppError("User không tồn tại", 404);
+  }
+  const current = user.readerSettings ? user.readerSettings.toObject?.() || user.readerSettings : {};
+  user.readerSettings = { ...current, ...sanitized };
+  await user.save();
+  return user.readerSettings;
+};

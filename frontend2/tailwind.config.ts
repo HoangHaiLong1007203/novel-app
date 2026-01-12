@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import animate from "tailwindcss-animate";
 
 const config: Config = {
   content: [
@@ -8,7 +9,7 @@ const config: Config = {
     extend: {},
   },
   plugins: [
-    require("tailwindcss-animate"), // 👈 hiệu ứng mượt cho shadcn ui
+    animate, // 👈 hiệu ứng mượt cho shadcn ui
   ],
 };
 

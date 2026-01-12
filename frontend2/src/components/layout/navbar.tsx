@@ -19,6 +19,7 @@ import {
 import { useAuth } from "@/hook/useAuth";
 import { logout } from "@/lib/api";
 import Icon from "@/components/Icon";
+import { Coins } from "lucide-react";
 import SearchSuggestBar from "@/components/ui/SearchSuggestBar"; // ✅ dùng component tìm kiếm gợi ý thật
 
 export default function Navbar() {
@@ -106,15 +107,22 @@ export default function Navbar() {
                   <DropdownMenuLabel>
                     <div className="flex flex-col">
                       <span className="font-medium">{user.username}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {user.email}
+                      <span className="text-xs text-muted-foreground">{user.email}</span>
+                      <span className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                        <Coins className="size-4" />
+                        <span>{(user.coins ?? 0).toLocaleString("vi-VN")} xu</span>
                       </span>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/profile">
+                    <Link href="/me/profile">
                       <Icon name="user" className="mr-2" /> Hồ sơ
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/bookshelf">
+                      <Icon name="book" className="mr-2" /> Tủ truyện
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>

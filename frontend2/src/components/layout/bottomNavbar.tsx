@@ -1,18 +1,33 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
-import { useAuth } from "@/hook/useAuth";
+// Removed unused Avatar and auth imports
 import Icon from "@/components/Icon";
 
 export default function BottomNavbar() {
-  const { user } = useAuth();
   const pathname = usePathname();
+  // Centralized patterns for pages where the bottom navbar should be hidden.
+  // To add more pages in future, append either a string or a RegExp here.
+  // - If a string ends with `/*` it is treated as a prefix match (startsWith).
+  // - If a string has no wildcard it's treated as an exact path.
+  // - You can also add RegExp entries for complex matches.
+  const HIDE_ON_PATHS: Array<string | RegExp> = [
+    /^\/novels\/[^/]+\/chapters\/[^/]+$/,
+  ];
+
+  const matchesPattern = (path: string | null | undefined, pattern: string | RegExp) => {
+    if (!path) return false;
+    if (pattern instanceof RegExp) return pattern.test(path);
+    if (pattern.endsWith("/*")) return path.startsWith(pattern.slice(0, -1));
+    return path === pattern;
+  };
+
+  const shouldHide = HIDE_ON_PATHS.some((p) => matchesPattern(pathname, p));
+  if (shouldHide) return null;
   const navItems = [
-    { href: "/novels", icon: "book", label: "Truyện" },
+    { href: "/bookshelf", icon: "book", label: "Tủ truyện" },
+    { href: "/", icon: "home", label: "Khám phá" },
     { href: "/ranking", icon: "star", label: "Xếp hạng" },
-    { href: "/upload", icon: "plus", label: "Đăng" },
-    { href: user ? "/profile" : "/login", icon: "user", label: user ? "Hồ sơ" : "Đăng nhập" },
   ];
 
   return (
@@ -23,7 +38,7 @@ export default function BottomNavbar() {
             key={item.href}
             href={item.href}
             className={`flex flex-col items-center justify-center px-2 py-1 text-xs font-medium transition-colors ${
-              pathname.startsWith(item.href)
+              pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
                 ? "text-blue-600"
                 : "text-muted-foreground hover:text-blue-600"
             }`}
@@ -32,12 +47,6 @@ export default function BottomNavbar() {
             <span>{item.label}</span>
           </Link>
         ))}
-        {user && (
-          <Avatar className="h-7 w-7 ml-2">
-            <AvatarImage src={user.avatarUrl || undefined} alt={user.username} />
-            <AvatarFallback>{user.username?.charAt(0).toUpperCase()}</AvatarFallback>
-          </Avatar>
-        )}
       </div>
     </nav>
   );

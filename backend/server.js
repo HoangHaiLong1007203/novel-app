@@ -3,7 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import authRoutes from "./routes/auth.js";
 import novelRoutes from "./routes/novel.js";
-import chapterRoutes from "./routes/chapter.js";
+import chapterRoutes from "./routes/chapterAccess.js";
 import bookmarkRoutes from "./routes/bookmark.js";
 import notificationRoutes from "./routes/notification.js";
 import commentRoutes from "./routes/comment.js";

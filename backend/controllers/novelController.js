@@ -15,7 +15,6 @@ import { normalizeText } from "../utils/normalize.js";
 export const createNovel = async (req, res, next) => {
   try {
     const { title, description, genres, type, author, status } = req.body;
-    const poster = req.user.userId;
 
     if (!title || !type) {
       return next(new AppError("Title và type là bắt buộc", 400));
@@ -30,14 +29,20 @@ export const createNovel = async (req, res, next) => {
       return next(new AppError("User not found", 404));
     }
 
+    // Ensure for 'sáng tác' we always use the poster's username as author
+    // and set authorUser to the user's _id. For 'dịch/đăng lại' author is
+    // a free text string and authorUser stays null.
     let novelAuthor;
+    let novelAuthorUser = null;
     if (type === "sáng tác") {
       novelAuthor = user.username;
+      novelAuthorUser = user._id;
     } else {
       if (!author) {
         return next(new AppError("Author là bắt buộc cho type 'dịch/đăng lại'", 400));
       }
       novelAuthor = author;
+      novelAuthorUser = null;
     }
 
     let coverImageUrl = "/default-cover.jpg";
@@ -49,8 +54,10 @@ export const createNovel = async (req, res, next) => {
       title,
       titleNormalized: normalizeText(title),
       author: novelAuthor,
-      authorNormalized: normalizeText(novelAuthor),
-      poster,
+      authorNormalized: novelAuthor ? normalizeText(novelAuthor) : undefined,
+      authorUser: novelAuthorUser,
+      // store poster as the actual user _id to avoid accidental string/id mixups
+      poster: user._id,
       type,
       description,
       genres: genres ? genres.split(",") : [],
@@ -114,12 +121,27 @@ export const getNovels = async (req, res, next) => {
 
       const novels = await query.sort({ createdAt: -1 });
 
+      // If an `author` query was provided, also match by poster.username in
+      // memory after populating `poster`. This handles cases where existing
+      // records have `author` stored as an ObjectId (e.g. poster id) instead
+      // of the author's username.
+      let novelsResult = novels;
+      if (author) {
+        novelsResult = novels.filter(n => {
+          if (n.author === author) return true;
+          if (n.poster && n.poster.username === author) return true;
+          return false;
+        });
+      }
+
       if (page && limit) {
-        const total = await Novel.countDocuments(filter);
+        // Use filtered result length as total when author filter applied,
+        // otherwise use the collection countDocuments for performance.
+        const total = author ? novelsResult.length : await Novel.countDocuments(filter);
         const totalPages = Math.ceil(total / parseInt(limit));
 
         return res.json({
-          novels,
+          novels: novelsResult,
           pagination: {
             page: parseInt(page),
             limit: parseInt(limit),
@@ -128,7 +150,7 @@ export const getNovels = async (req, res, next) => {
           }
         });
       } else {
-        return res.json({ novels });
+        return res.json({ novels: novelsResult });
       }
     }
 

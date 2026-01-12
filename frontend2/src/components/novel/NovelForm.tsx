@@ -6,6 +6,8 @@ import { GENRES } from "@/lib/genres";
 import { API } from "@/lib/api";
 import { Button, Input, Label, Textarea } from "@/components/ui";
 import { User } from "@/hook/useAuth";
+import { toast } from "@/lib/toast";
+import { toastApiError } from "@/lib/errors";
 
 type NovelType = "sáng tác" | "dịch/đăng lại";
 type NovelStatus = "còn tiếp" | "tạm ngưng" | "hoàn thành";
@@ -29,26 +31,28 @@ interface FormState {
 
 interface NovelFormProps {
   user: User | null; // from useAuth
-  onSuccess: (novelId: string) => void; // callback after successful creation
+  onSuccess: (novelId: string) => void; // callback after successful creation/update
+  // optional: when provided, the form acts as update form
+  novelId?: string;
+  initial?: Partial<FormState> & { coverUrl?: string };
 }
 
-export default function NovelForm({ user, onSuccess }: NovelFormProps) {
+export default function NovelForm({ user, onSuccess, novelId, initial }: NovelFormProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [form, setForm] = useState<FormState>({
-    title: "",
-    type: "",
-    author: "",
-    description: "",
-    genres: [],
-    status: "còn tiếp",
+    title: initial?.title || "",
+    type: (initial?.type as NovelType) || "",
+    author: initial?.author || "",
+    description: initial?.description || "",
+    genres: initial?.genres || [],
+    status: (initial?.status as NovelStatus) || "còn tiếp",
     coverFile: null,
   });
 
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(initial?.coverUrl || null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
 
   const updateField = <K extends keyof FormState>(k: K, v: FormState[K]) => {
     setForm((s) => ({ ...s, [k]: v }));
@@ -59,9 +63,11 @@ export default function NovelForm({ user, onSuccess }: NovelFormProps) {
     if (form.type === "sáng tác" && user?.username) {
       updateField("author", user.username);
     } else if (form.type === "dịch/đăng lại") {
-      updateField("author", "");
+      // In edit mode (novelId provided), keep the existing author value.
+      // Only clear the author automatically when creating a new novel.
+      if (!novelId) updateField("author", "");
     }
-  }, [form.type, user?.username]);
+  }, [form.type, user?.username, novelId]);
 
   // chuẩn hóa chữ khi blur
   const normalizeName = (val: string) =>
@@ -96,7 +102,6 @@ export default function NovelForm({ user, onSuccess }: NovelFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
-    setMessage(null);
 
     // First: validate title, type, author
     const basicErrors: Record<string, string> = {};
@@ -122,7 +127,7 @@ export default function NovelForm({ user, onSuccess }: NovelFormProps) {
           n.author.toLowerCase() === form.author.toLowerCase()
       );
       if (exists) {
-        setMessage(`Truyện "${form.title}" bởi ${form.author} đã được đăng bởi người khác.`);
+        toast.error(`Truyện "${form.title}" bởi ${form.author} đã được đăng bởi người khác.`);
         return;
       }
     } catch {
@@ -151,13 +156,25 @@ export default function NovelForm({ user, onSuccess }: NovelFormProps) {
       formData.append("status", form.status);
       if (form.coverFile) formData.append("cover", form.coverFile);
 
-      const res = await API.post("/api/novels", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      onSuccess(res.data?.novel?._id || "");
+      let res;
+      if (novelId) {
+        // update existing novel
+        res = await API.put(`/api/novels/${novelId}`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+      } else {
+        // create new
+        res = await API.post("/api/novels", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+      }
+      const createdNovelId = res.data?.novel?._id || res.data?.novelId || "";
+      const successMessage = res.data?.message || (novelId ? "Đã cập nhật truyện" : "Đã tạo truyện mới");
+      toast.success(successMessage);
+      onSuccess(createdNovelId);
     } catch (err) {
-      const e = err as { response?: { data?: { message?: string } } };
-      setMessage(e.response?.data?.message || "Tạo truyện thất bại.");
+      const fallback = novelId ? "Cập nhật truyện thất bại." : "Tạo truyện thất bại.";
+      toastApiError(err, fallback);
     } finally {
       setSubmitting(false);
     }
@@ -305,11 +322,9 @@ export default function NovelForm({ user, onSuccess }: NovelFormProps) {
           </div>
         </div>
 
-        {message && <p className="text-sm text-destructive">{message}</p>}
-
         <div className="flex gap-3 pt-2">
           <Button type="submit" disabled={submitting}>
-            {submitting ? "Đang tạo..." : "Tạo truyện"}
+            {submitting ? (novelId ? "Đang cập nhật..." : "Đang tạo...") : novelId ? "Cập nhật truyện" : "Tạo truyện"}
           </Button>
           <Button type="button" variant="ghost" onClick={() => window.history.back()}>
             Hủy
