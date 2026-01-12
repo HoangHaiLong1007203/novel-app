@@ -121,14 +121,11 @@ export default function NovelForm({ user, onSuccess, novelId, initial }: NovelFo
     try {
       const { data } = await API.get("/api/novels");
       const novels: Novel[] = data?.novels || [];
-      const exists = novels.some((n) => {
-        // ignore the current novel when updating
-        if (novelId && n._id === novelId) return false;
-        return (
+      const exists = novels.some(
+        (n) =>
           n.title.toLowerCase() === form.title.toLowerCase() &&
           n.author.toLowerCase() === form.author.toLowerCase()
-        );
-      });
+      );
       if (exists) {
         toast.error(`Truyện "${form.title}" bởi ${form.author} đã được đăng bởi người khác.`);
         return;
