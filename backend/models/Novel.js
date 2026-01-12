@@ -5,6 +5,7 @@ const novelSchema = new mongoose.Schema({
   titleNormalized: { type: String },
   author: { type: String, required: true },
   authorNormalized: { type: String },
+  authorUser: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   poster: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   type: { type: String, required: true, enum: ["sáng tác", "dịch/đăng lại"] },
   description: String,

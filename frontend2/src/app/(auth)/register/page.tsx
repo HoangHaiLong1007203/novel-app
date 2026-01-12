@@ -5,7 +5,8 @@ import { API } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { Button, Input, Label } from "@/components/ui";
 import Link from "next/link";
-import type { AxiosError } from "axios";
+import { toast } from "@/lib/toast";
+import { toastApiError } from "@/lib/errors";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -26,17 +27,11 @@ export default function RegisterPage() {
       const res = await API.post("/api/auth/register", form);
       localStorage.setItem("accessToken", res.data.accessToken);
       localStorage.setItem("refreshToken", res.data.refreshToken);
+      toast.success("Đăng ký thành công");
       router.push("/");
     } catch (err: unknown) {
-      const error = err as AxiosError;
-      if (error.response) {
-        // Server responded with error
-        const message = (error.response.data as { message?: string })?.message || "Đăng ký thất bại";
-        setError(message);
-      } else {
-        // Network error or server not reachable
-        setError("Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng và thử lại.");
-      }
+      const message = toastApiError(err, "Đăng ký thất bại");
+      setError(message);
     } finally {
       setLoading(false);
     }

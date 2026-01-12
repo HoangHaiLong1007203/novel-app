@@ -6,6 +6,17 @@ const providerSchema = new mongoose.Schema({
   providerId: { type: String }, // chỉ social login mới có providerId
 });
 
+const readerSettingsSchema = new mongoose.Schema(
+  {
+    fontSize: { type: Number, default: 16 },
+    fontFamily: { type: String, default: "system" },
+    backgroundColor: { type: String, default: "#ffffff" },
+    lineHeight: { type: Number, default: 1.6 },
+    theme: { type: String, enum: ["light", "dark", "sepia"], default: "light" },
+  },
+  { _id: false }
+);
+
 // Schema chính cho user
 const userSchema = new mongoose.Schema(
   {
@@ -21,6 +32,10 @@ const userSchema = new mongoose.Schema(
 
     // Avatar URL
     avatarUrl: { type: String, default: "" },
+
+    unlockedChapters: [{ type: mongoose.Schema.Types.ObjectId, ref: "Chapter" }],
+
+    readerSettings: { type: readerSettingsSchema, default: () => ({}) },
   },
   { timestamps: true }
 );

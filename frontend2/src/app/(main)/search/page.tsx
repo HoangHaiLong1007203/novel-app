@@ -3,15 +3,17 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import NovelCard from "@/components/novel/NovelCard";
+import NovelRow from "@/components/novel/NovelRow";
 import NovelFilter from "@/components/novel/NovelFilter";
 import { API } from "@/lib/api";
-import { Button } from "@/components/ui";
+import { Button, ToggleGroup, ToggleGroupItem } from "@/components/ui";
 import PaginationCompact from "@/components/ui/PaginationCompact";
 import SearchSuggestBar from "@/components/ui/SearchSuggestBar";
 
 interface Novel {
   _id: string;
   title: string;
+  description?: string;
   author?: string | { username: string };
   poster?: { username: string };
   coverImageUrl?: string;
@@ -25,6 +27,10 @@ export default function SearchPage() {
   const qParam = searchParams.get("q") || "";
 
   const [query, setQuery] = useState(qParam);
+  useEffect(() => {
+    setQuery(qParam);
+    setPage(1);
+  }, [qParam]);
   const [novels, setNovels] = useState<Novel[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -43,7 +49,7 @@ export default function SearchPage() {
     chapterRange: [0, 2100],
     sortBy: null,
   });
-  const [viewMode] = useState<"card" | "row">("card");
+  const [viewMode, setViewMode] = useState<"card" | "row">("card");
   const [showFilter, setShowFilter] = useState(false);
   const [isLargeScreen, setIsLargeScreen] = useState(false);
 
@@ -51,7 +57,7 @@ export default function SearchPage() {
     try {
       // If query present, use search endpoint which now supports pagination
       if (query.trim()) {
-        const res = await API.get(`/api/novels/search?q=${encodeURIComponent(query)}&page=${page}&limit=15`);
+        const res = await API.get(`/api/novels/search?q=${encodeURIComponent(query)}&page=${page}&limit=${viewMode === "card" ? 15 : 10}`);
         const data = res.data;
         setNovels(data?.novels || []);
         setTotal(data?.pagination?.total || data?.novels?.length || 0);
@@ -100,14 +106,7 @@ export default function SearchPage() {
     setPage(1);
   };
 
-  const handleSearchSubmit = (q: string) => {
-    // update URL param so users can share
-    const params = new URLSearchParams();
-    if (q.trim()) params.set("q", q.trim());
-    router.replace(`/search?${params.toString()}`);
-    setQuery(q);
-    setPage(1);
-  };
+  
 
   return (
     <div className={`max-w-7xl mx-auto p-4 gap-6 ${isLargeScreen ? 'flex flex-row' : 'flex flex-col'}`}>
@@ -117,7 +116,7 @@ export default function SearchPage() {
       </div>
 
       {/* RIGHT: Results */}
-      <div className="flex-1">
+      <div className="flex-1 max-w-4xl mx-auto">
         <div className="mb-4 flex items-center gap-4">
           <Button
             variant="outline"
@@ -126,27 +125,54 @@ export default function SearchPage() {
           >
             {showFilter ? 'Ẩn bộ lọc' : 'Hiện bộ lọc'}
           </Button>
+          <ToggleGroup
+            type="single"
+            value={viewMode}
+            onValueChange={(v) => v && setViewMode(v as "card" | "row")}
+          >
+            <ToggleGroupItem value="card">🗂️</ToggleGroupItem>
+            <ToggleGroupItem value="row">📄</ToggleGroupItem>
+          </ToggleGroup>
           <SearchSuggestBar
             placeholder="Tìm truyện (nhấn Enter để xem tất cả)..."
             onSelect={(n) => router.push(`/novels/${n._id}`)}
           />
-          <Button onClick={() => handleSearchSubmit(query)}>
-            Tìm
-          </Button>
         </div>
 
-        <h1 className="text-lg font-semibold mb-2">Kết quả tìm kiếm: {total}</h1>
+        <h1 className="text-lg font-semibold mb-2">
+          Kết quả tìm kiếm cho &quot;{query}&quot;:
+          <span className="block text-sm italic text-gray-700 mt-1">{total} kết quả đã được tìm thấy.</span>
+        </h1>
 
         <PaginationCompact page={page} totalPages={totalPages} onChange={setPage} className="mb-3" />
 
         {novels.length === 0 ? (
           <p className="text-center text-muted-foreground mt-8">Không có kết quả.</p>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        ) : viewMode === "card" ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
             {novels.map((novel) => (
               <div key={novel._id} className="group relative hover:scale-[1.02] transition-transform">
                 <NovelCard novel={novel} />
               </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(25rem, 1fr))' }}>
+            {novels.map((novel) => (
+              <NovelRow
+                key={novel._id}
+                novel={{
+                  _id: novel._id,
+                  title: novel.title,
+                  author:
+                    typeof novel.author === "string"
+                      ? novel.author
+                      : novel.author?.username,
+                  description: novel.description,
+                  genres: novel.genres,
+                  coverImageUrl: novel.coverImageUrl,
+                }}
+              />
             ))}
           </div>
         )}

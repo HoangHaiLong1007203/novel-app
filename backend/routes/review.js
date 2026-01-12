@@ -12,14 +12,15 @@ import authMiddleware from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-// All routes require authentication
+
+// Get reviews for a novel (public)
+router.get("/novel/:novelId", getReviewsByNovel);
+
+// The following routes require authentication
 router.use(authMiddleware);
 
 // Create a new review
 router.post("/", createReview);
-
-// Get reviews for a novel
-router.get("/novel/:novelId", getReviewsByNovel);
 
 // Reply to a review
 router.post("/:reviewId/reply", replyToReview);

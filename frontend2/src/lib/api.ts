@@ -1,4 +1,5 @@
 import axios from "axios";
+import { NormalizedError } from "@/lib/errors";
 
 export const API = axios.create({
   baseURL:
@@ -35,7 +36,17 @@ API.interceptors.response.use(
       delete originalRequest.headers.Authorization;
       return API(originalRequest);
     }
-    return Promise.reject(error);
+    // Chuẩn hoá lỗi để UI dễ hiển thị: luôn trả về object { status, message, details }
+    const respData = error.response?.data as {
+      message?: string;
+      error?: string;
+      details?: string | null;
+    } | undefined;
+    const message = respData?.message ?? respData?.error ?? error.message;
+    const details = respData?.details ?? null;
+    const status = error.response?.status ?? 500;
+    const normalized: NormalizedError = { status, message, details, original: error };
+    return Promise.reject(normalized);
   }
 );
 export async function logout() {

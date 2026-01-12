@@ -5,7 +5,8 @@ import { API } from "@/lib/api";
 import { Input, Button } from "@/components/ui";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hook/useAuth";
-import type { AxiosError } from "axios";
+import { toast } from "@/lib/toast";
+import { toastApiError } from "@/lib/errors";
 
 function LoginForm() {
   const router = useRouter();
@@ -27,10 +28,11 @@ function LoginForm() {
       // Fetch user data and update auth state
       const userRes = await API.get("/api/auth/me");
       setUser(userRes.data);
+      toast.success("Đăng nhập thành công");
       router.replace(redirect);
     } catch (err) {
-      const error = err as AxiosError<{ message?: string }>;
-      setError(error.response?.data?.message || "Đăng nhập thất bại");
+      const message = toastApiError(err, "Đăng nhập thất bại");
+      setError(message);
     }
   }
 

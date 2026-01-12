@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "@/lib/toast";
+import { toastApiError, toNormalizedError } from "@/lib/errors";
 import {
   fetchReaderSettings,
   saveReaderSettings,
@@ -33,11 +35,11 @@ const localKey = "novel-app-reader-settings";
 
 type Props = {
   onChange?: (settings: ReaderSettingsPayload) => void;
+  onClose?: () => void;
 };
 
-const SettingsUI = ({ onChange }: Props) => {
+const SettingsUI = ({ onChange, onClose }: Props) => {
   const [settings, setSettings] = useState(defaultSettings);
-  const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -59,14 +61,25 @@ const SettingsUI = ({ onChange }: Props) => {
       }
     };
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const previewStyle = useMemo(() => {
     const palette = themePresets[settings.theme] || themePresets.sepia;
+    const fontVarMap: Record<string, string> = {
+      "Literata": "var(--font-literata)",
+      "Space Grotesk": "var(--font-space-grotesk)",
+      "Be Vietnam Pro": "var(--font-be-vietnam-pro)",
+      "Merriweather": "var(--font-merriweather)",
+      "system": "system-ui, sans-serif",
+    };
+
+    const chosen = settings.fontFamily;
+    const familyBase = fontVarMap[chosen] || chosen;
+    const fontFamily = familyBase.includes("var(") ? `${familyBase}, sans-serif` : `${familyBase}, "Be Vietnam Pro", "Space Grotesk", sans-serif`;
+
     return {
       fontSize: `${settings.fontSize}px`,
-      fontFamily: `${settings.fontFamily}, "Be Vietnam Pro", "Space Grotesk", sans-serif`,
+      fontFamily,
       backgroundColor: settings.backgroundColor || palette.background,
       color: palette.color,
       lineHeight: settings.lineHeight,
@@ -76,7 +89,6 @@ const SettingsUI = ({ onChange }: Props) => {
   const persist = (next: ReaderSettingsPayload) => {
     setSettings((prev) => {
       const merged = { ...prev, ...next } as Required<ReaderSettingsPayload>;
-      onChange?.(merged);
       if (typeof window !== "undefined") {
         localStorage.setItem(localKey, JSON.stringify(merged));
       }
@@ -84,15 +96,35 @@ const SettingsUI = ({ onChange }: Props) => {
     });
   };
 
+  // Notify parent about setting changes after render to avoid setState-in-render
+  useEffect(() => {
+    onChange?.(settings);
+  }, [settings, onChange]);
+
   const handleSave = async () => {
     setSaving(true);
-    setStatus(null);
     try {
+      // Always persist to local first so settings are not lost
+      persist(settings);
+
+      const accessToken = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+      if (!accessToken || accessToken === "undefined" || accessToken === "null") {
+        toast.success("Đã lưu tại local (chưa đăng nhập)");
+        onClose?.();
+        return;
+      }
+
+      // If logged in, attempt to save on server
       const server = await saveReaderSettings(settings);
       persist(server);
-      setStatus("Đã lưu tuỳ chỉnh vào tài khoản");
-    } catch (error) {
-      setStatus("Không thể lưu lên máy chủ, đã lưu tại local");
+      toast.success("Đã lưu tuỳ chỉnh vào tài khoản");
+      onClose?.();
+    } catch (error: unknown) {
+      const normalized = toNormalizedError(error);
+      const fallback = normalized.status === 401
+        ? "Chưa đăng nhập — đã lưu tại local"
+        : "Không thể lưu lên máy chủ, đã lưu tại local";
+      toastApiError(error, fallback);
       console.error(error);
     } finally {
       setSaving(false);
@@ -108,17 +140,18 @@ const SettingsUI = ({ onChange }: Props) => {
   }
 
   return (
-    <section className="rounded-3xl bg-gradient-to-br from-amber-50 via-white to-rose-50 p-6 shadow-xl ring-1 ring-orange-100">
-      <header className="mb-6 flex items-baseline justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-500">định dạng</p>
-          <h2 className="text-2xl font-semibold text-slate-900">Bảng điều khiển trải nghiệm đọc</h2>
-        </div>
-        {status && <span className="text-xs font-medium text-emerald-600">{status}</span>}
-      </header>
+    <section className="rounded-3xl bg-gradient-to-br from-amber-50 via-white to-rose-50 p-6 shadow-xl ring-1 ring-orange-100 h-full min-h-0">
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="space-y-5">
+
+        <div className="grid gap-6 grid-cols-2 items-stretch h-full min-h-0">
+          <div className="space-y-3 overflow-auto min-h-0">
+          <header className="mb-2 flex items-baseline justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-500">định dạng</p>
+              {/* <h2 className="text-2xl font-semibold text-slate-900">Bảng điều khiển trải nghiệm đọc</h2> */}
+            </div>
+          </header>
+
           <label className="block text-sm font-semibold text-slate-700">
             Cỡ chữ: {settings.fontSize}px
             <input
@@ -126,7 +159,7 @@ const SettingsUI = ({ onChange }: Props) => {
               min={14}
               max={32}
               value={settings.fontSize}
-              className="mt-2 w-full accent-amber-500"
+              className=" w-full accent-amber-500"
               onChange={(e) => persist({ fontSize: Number(e.target.value) })}
             />
           </label>
@@ -139,7 +172,7 @@ const SettingsUI = ({ onChange }: Props) => {
               min={1.2}
               max={2.4}
               value={settings.lineHeight}
-              className="mt-2 w-full accent-amber-500"
+              className=" w-full accent-amber-500"
               onChange={(e) => persist({ lineHeight: Number(e.target.value) })}
             />
           </label>
@@ -194,23 +227,20 @@ const SettingsUI = ({ onChange }: Props) => {
             disabled={saving}
             className="w-full rounded-2xl bg-gradient-to-r from-amber-500 to-rose-500 px-4 py-3 text-center text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-amber-200 transition hover:shadow-rose-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {saving ? "Đang lưu..." : "Lưu vào tài khoản"}
+            {saving ? "Đang lưu..." : "Lưu định dạng"}
           </button>
         </div>
 
         <div
-          className="rounded-3xl p-6 shadow-inner"
+          className="rounded-3xl p-6 shadow-inner flex flex-col h-full min-h-0"
           style={{ background: previewStyle.backgroundColor }}
         >
           <p className="text-xs font-semibold uppercase tracking-[0.5em] text-amber-600">Preview</p>
           <article
-            className="mt-4 rounded-2xl bg-white/40 p-5 text-base shadow-md"
+            className="mt-4 rounded-2xl bg-white/40 p-5 text-base shadow-md flex-1 min-h-0 overflow-hidden"
             style={{ fontSize: previewStyle.fontSize, fontFamily: previewStyle.fontFamily, lineHeight: previewStyle.lineHeight, color: previewStyle.color }}
           >
-            <p>
-              “Chúng ta đọc truyện để bước vào một thế giới khác, và mỗi cài đặt ở đây chính là chiếc chìa khoá giúp trải nghiệm đó gần gũi hơn với bạn.”
-            </p>
-            <p className="mt-4">
+            <p className="mt-4 text-justify">
               Thử thay đổi font, màu nền hoặc dãn dòng rồi cảm nhận ngay trong khung preview này. Các chương sẽ áp dụng cùng phong cách khi bạn đọc trên mọi thiết bị.
             </p>
           </article>

@@ -6,8 +6,18 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/hook/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+
+import RatingComment from "@/components/novel/RatingComment";
+import ReviewCommentPane from "@/components/novel/ReviewCommentPane";
+import ChapterList from "../../../../components/novel/ChapterList";
+import NovelStats from "@/components/novel/NovelStats";
+import NovelCarousel from "@/components/novel/NovelCarousel";
+import NovelTile from "@/components/novel/NovelTile";
 import { API } from "@/lib/api";
 
 interface Novel {
@@ -18,7 +28,10 @@ interface Novel {
   genres?: string[];
   status?: string;
   coverImageUrl?: string;
+  viewCount?: number;
+  poster?: { _id?: string; username?: string };
 }
+
 
 interface Chapter {
   _id: string;
@@ -26,11 +39,62 @@ interface Chapter {
   title: string;
 }
 
+interface Review {
+  _id: string;
+  user: { username: string; avatarUrl?: string };
+  rating: number;
+  content: string;
+  createdAt: string;
+}
+
+interface Comment {
+  _id: string;
+  user: { username: string; avatarUrl?: string };
+  content: string;
+  createdAt: string;
+}
 export default function NovelDetailPage() {
   const { id } = useParams();
+  const { user } = useAuth();
+  const [showReviewComposer, setShowReviewComposer] = useState(false);
+  const router = useRouter();
   const [novel, setNovel] = useState<Novel | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [chaptersAsc] = useState(true);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [authorNovels, setAuthorNovels] = useState<Novel[]>([]);
+  const [posterNovels, setPosterNovels] = useState<Novel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
+  const [inBookshelf, setInBookshelf] = useState(false);
+  const [removing, setRemoving] = useState(false);
+
+  useEffect(() => {
+    // Check if this novel is already in user's bookshelf
+    if (!id) return;
+    if (!user) {
+      setInBookshelf(false);
+      return;
+    }
+
+    let mounted = true;
+    API.get(`/api/reading-progress/${id}`)
+      .then((res) => {
+        if (!mounted) return;
+        const prog = res.data?.readingProgress;
+        setInBookshelf(!!prog);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setInBookshelf(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [id, user]);
 
   useEffect(() => {
     if (!id) return;
@@ -38,8 +102,53 @@ export default function NovelDetailPage() {
       try {
         const res = await API.get(`/api/novels/${id}`);
         setNovel(res.data?.novel || null);
+        console.log("[debug] fetched novel:", res.data?.novel);
         const chaptersRes = await API.get(`/api/novels/${id}/chapters?sort=asc`);
         setChapters(chaptersRes.data?.chapters || []);
+        // Fetch reviews nếu có token
+        const accessToken = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+        if (accessToken && accessToken !== 'undefined' && accessToken !== 'null') {
+          try {
+            const reviewsRes = await API.get(`/api/reviews/novel/${id}`);
+            setReviews(reviewsRes.data?.reviews || []);
+          } catch {
+            setReviews([]);
+          }
+        } else {
+          setReviews([]);
+        }
+        // Fetch comments (route public)
+        const commentsRes = await API.get(`/api/comments/novel/${id}`);
+        setComments(commentsRes.data?.comments || []);
+
+        // Fetch novels by same author (public)
+        const novelAuthor = res.data?.novel?.author;
+        if (novelAuthor) {
+          try {
+            const authorUrl = `/api/novels?author=${encodeURIComponent(novelAuthor)}&limit=5`;
+            console.log("[debug] author query url:", authorUrl);
+            const authorRes = await API.get(authorUrl);
+            const list = authorRes.data?.novels || [];
+            setAuthorNovels(list as Novel[]);
+            console.log("[debug] fetched authorNovels for", novelAuthor, list.length);
+          } catch {
+            setAuthorNovels([]);
+          }
+        }
+
+        // Fetch novels by same poster (public)
+        const posterId = res.data?.novel?.poster?._id;
+        if (posterId) {
+          try {
+            const posterRes = await API.get(`/api/novels?poster=${encodeURIComponent(posterId)}&limit=5`);
+            const list = posterRes.data?.novels || [];
+            // keep the current novel in the returned list for verification
+            setPosterNovels(list as Novel[]);
+            console.log("[debug] fetched posterNovels for", posterId, list.length);
+          } catch {
+            setPosterNovels([]);
+          }
+        }
       } catch (err) {
         console.error("Không thể tải truyện:", err);
       } finally {
@@ -72,7 +181,7 @@ export default function NovelDetailPage() {
     genres = [],
     status = "Còn tiếp",
     coverImageUrl = "/default-cover.jpg",
-  } = novel;
+  } = novel || {};
 
   const firstChapter = chapters.length > 0 ? chapters[0] : null;
 
@@ -125,7 +234,76 @@ export default function NovelDetailPage() {
               ) : (
                 <Button disabled>Đọc truyện</Button>
               )}
-              <Button variant="secondary">Thêm vào tủ truyện</Button>
+                {inBookshelf ? (
+                  <Button
+                    variant="destructive"
+                    onClick={async () => {
+                      if (!user) {
+                        setShowLoginDialog(true);
+                        return;
+                      }
+                      try {
+                        setRemoving(true);
+                        await API.delete(`/api/reading-progress/${id}`);
+                        setInBookshelf(false);
+                      } catch (e) {
+                        console.error("Không thể xóa khỏi tủ truyện:", e);
+                      } finally {
+                        setRemoving(false);
+                      }
+                    }}
+                    disabled={removing}
+                  >
+                    {removing ? "Đang xóa..." : "Xóa khỏi tủ truyện"}
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      variant="secondary"
+                      onClick={async () => {
+                        if (!user) {
+                          setShowLoginDialog(true);
+                          return;
+                        }
+
+                        try {
+                          setAdding(true);
+                          // Create reading progress / add to bookshelf
+                          await API.put(`/api/reading-progress/${id}`, { readChapterIds: [] });
+                          setInBookshelf(true);
+                        } catch (e) {
+                          console.error("Không thể thêm vào tủ truyện:", e);
+                        } finally {
+                          setAdding(false);
+                        }
+                      }}
+                      disabled={adding}
+                    >
+                      {adding ? "Đang thêm..." : "Thêm vào tủ truyện"}
+                    </Button>
+
+                    <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Yêu cầu đăng nhập</DialogTitle>
+                          <DialogDescription>cần phải đăng nhập để thêm vào tủ truyện</DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                          <Button variant="ghost" onClick={() => setShowLoginDialog(false)}>Để sau</Button>
+                          <Button
+                            onClick={() => {
+                              setShowLoginDialog(false);
+                              router.push(`/login?redirect=${encodeURIComponent(`/novels/${id}`)}`);
+                            }}
+                          >
+                            Ok
+                          </Button>
+                        </DialogFooter>
+                        <DialogClose />
+                      </DialogContent>
+                    </Dialog>
+                  </>
+                )}
             </div>
           </div>
         </div>
@@ -136,34 +314,112 @@ export default function NovelDetailPage() {
             <TabsList className="w-full">
               <TabsTrigger value="gioithieu" className="flex-1">Giới thiệu</TabsTrigger>
               <TabsTrigger value="danhgia" className="flex-1">Đánh giá</TabsTrigger>
-              <TabsTrigger value="comment" className="flex-1">Comment</TabsTrigger>
+              <TabsTrigger value="comment" className="flex-1">Bình luận</TabsTrigger>
               <TabsTrigger value="chuong" className="flex-1">Danh sách chương</TabsTrigger>
             </TabsList>
             <TabsContent value="gioithieu">
-              <h2 className="text-lg font-semibold mb-2">Giới thiệu</h2>
-              <p className="text-sm leading-relaxed whitespace-pre-line">{description}</p>
+              <NovelStats
+                chapterCount={chapters.length}
+                status={status}
+                viewCount={novel?.viewCount || 0}
+              />
+              <p className="text-sm leading-relaxed whitespace-pre-line" style={description ? { textAlign: 'justify' } : {}}>{description}</p>
+              <div className="mt-6">
+                <h3 className="font-semibold mb-2 text-base">Thể loại</h3>
+                <div className="flex flex-wrap gap-2">
+                  {genres.length > 0 ? genres.map((g) => (
+                    <Badge
+                      key={g}
+                      className="cursor-pointer px-3 py-1 bg-secondary text-foreground hover:bg-primary hover:text-white transition-colors"
+                      // onClick={() => ...} // Nếu muốn filter hoặc chuyển trang thể loại
+                    >
+                      {g}
+                    </Badge>
+                  )) : <span className="text-xs opacity-60">Chưa có thể loại</span>}
+                </div>
+              </div>
+              <div className="mt-6">
+                <h3 className="font-semibold mb-2 text-base">Truyện cùng tác giả</h3>
+                {authorNovels.length > 0 ? (
+                  <NovelCarousel
+                    title={`Cùng tác giả: ${author}`}
+                    novels={authorNovels.slice(0, 5)}
+                    moreHref={`/search?author=${encodeURIComponent(author)}`}
+                    ItemComponent={NovelTile}
+                    direction="horizontal"
+                  />
+                ) : (
+                  <div className="text-sm opacity-70">Không tìm thấy truyện cùng tác giả.</div>
+                )}
+              </div>
+
+              <div className="mt-6">
+                <h3 className="font-semibold mb-2 text-base">Truyện cùng người đăng</h3>
+                {posterNovels.length > 0 ? (
+                  <NovelCarousel
+                    title={`Cùng người đăng: ${novel?.poster?.username || ""}`}
+                    novels={posterNovels.slice(0, 5)}
+                    moreHref={`/user/${novel?.poster?._id}`}
+                    ItemComponent={NovelTile}
+                    direction="horizontal"
+                  />
+                ) : (
+                  <div className="text-sm opacity-70">Không tìm thấy truyện cùng người đăng.</div>
+                )}
+              </div>
             </TabsContent>
             <TabsContent value="danhgia">
-              <h2 className="text-lg font-semibold mb-2">Đánh giá</h2>
-              <div className="text-sm opacity-80">Tính năng đánh giá sẽ hiển thị ở đây.</div>
+              <div className="fixed bottom-4 left-1/2 z-50 w-full max-w-5xl transform -translate-x-1/2 px-6 pointer-events-none">
+                <div className="flex justify-end pointer-events-auto">
+                  <button
+                    type="button"
+                    onClick={() => setShowReviewComposer((s) => !s)}
+                    className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-amber-500 text-white shadow-lg"
+                    aria-label={showReviewComposer ? "Đóng" : "Viết đánh giá"}
+                  >
+                    {showReviewComposer ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 20h9" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16.5 3.5a2.121 2.121 0 113 3L7 19l-4 1 1-4 12.5-12.5z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+
+                {showReviewComposer && (
+                  <div className="mt-3 pointer-events-auto">
+                    <RatingComment novelId={typeof id === 'string' ? id : String(id)} mode="review" onCreated={(rv) => { setReviews((prev) => [rv as Review, ...prev]); setShowReviewComposer(false); }} />
+                  </div>
+                )}
+              </div>
+
+              <ReviewCommentPane mode="review" items={reviews} currentUserId={user?._id ?? null} onReply={undefined} onReport={undefined} onDelete={undefined} />
             </TabsContent>
             <TabsContent value="comment">
-              <h2 className="text-lg font-semibold mb-2">Bình luận</h2>
-              <div className="text-sm opacity-80">Tính năng bình luận sẽ hiển thị ở đây.</div>
+              <div className="fixed bottom-4 left-1/2 z-50 w-full max-w-5xl transform -translate-x-1/2 px-6">
+                {firstChapter ? (
+                  <RatingComment
+                    novelId={typeof id === 'string' ? id : String(id)}
+                    chapterId={firstChapter._id}
+                    mode="comment"
+                    onCreated={(cm) => {
+                      setComments((prev) => [cm as Comment, ...prev]);
+                      const pane = document.getElementById("comment-pane");
+                      if (pane) pane.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                  />
+                ) : (
+                  <div className="text-sm opacity-80 text-center">Không có chương để bình luận.</div>
+                )}
+              </div>
+              <ReviewCommentPane id="comment-pane" mode="comment" items={comments} currentUserId={user?._id ?? null} onReply={undefined} onReport={undefined} onDelete={undefined} />
             </TabsContent>
             <TabsContent value="chuong">
-              <h2 className="text-lg font-semibold mb-2">Danh sách chương</h2>
-              {chapters.length > 0 ? (
-                <ul className="space-y-2 text-sm max-h-64 overflow-y-auto pr-2">
-                  {chapters.map((ch) => (
-                    <li key={ch._id}>
-                      Chương {ch.chapterNumber}: {ch.title}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="text-sm opacity-80">Chưa có chương nào.</div>
-              )}
+              <ChapterList chapters={chapters} mode="read" initialAsc={chaptersAsc} />
             </TabsContent>
           </Tabs>
         </div>

@@ -18,4 +18,22 @@ export const authMiddleware = (req, res, next) => {
     return next(new AppError("Token không hợp lệ hoặc đã hết hạn", 401));
   }
 };
+
+export const optionalAuth = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return next();
+  }
+
+  const token = authHeader.split(" ")[1];
+  try {
+    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+    req.user = decoded;
+  } catch (err) {
+    // ignore invalid token but log for debugging
+    console.warn("optionalAuth: invalid token provided", err.message);
+  }
+  next();
+};
+
 export default authMiddleware;
