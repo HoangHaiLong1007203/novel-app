@@ -42,6 +42,7 @@ export default function NovelTile({ novel }: { novel: Novel }) {
           src={novel.coverImageUrl || process.env.NEXT_PUBLIC_DEFAULT_COVER || "/default-cover.png"}
           alt={novel.title}
           fill
+          sizes="180px"
           className="object-cover transition-transform duration-300 group-hover:scale-105"
         />
       </div>

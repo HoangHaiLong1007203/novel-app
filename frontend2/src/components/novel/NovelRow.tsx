@@ -46,6 +46,7 @@ export default function NovelRow({ novel }: NovelRowProps) {
           src={novel.coverImageUrl || "/default-cover.jpg"}
           alt={novel.title}
           fill
+          sizes="80px"
           className="object-cover transition-transform duration-300 hover:scale-105"
         />
       </div>

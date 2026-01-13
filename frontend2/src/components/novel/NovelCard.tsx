@@ -57,11 +57,12 @@ export default function NovelCard({ novel }: NovelCardProps) {
       tabIndex={0}
       role="button"
     >
-      <div className="relative aspect-[3/4] w-full overflow-hidden">
+      <div className="relative aspect-[3/4] w-full overflow-hidden rounded-md bg-muted">
         <Image
           src={novel.coverImageUrl || process.env.NEXT_PUBLIC_DEFAULT_COVER || "/default-cover.png"}
           alt={novel.title}
           fill
+          sizes="280px"
           className="object-cover transition-transform duration-300 group-hover:scale-105"
         />
       </div>

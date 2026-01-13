@@ -27,13 +27,19 @@ interface ReadingProgress {
 
 interface Props {
   progress: ReadingProgress;
+  onRemoved?: (novelId: string) => void;
 }
 
-export default function ReadingCard({ progress }: Props) {
+export default function ReadingCard({ progress, onRemoved }: Props) {
   const novel = progress.novel! as NovelSummary;
   const [deleting, setDeleting] = useState(false);
   const [totalChapters, setTotalChapters] = useState<number | null>(null);
+  const [chapters, setChapters] = useState<Array<{ _id: string }>>([]);
+  const [lastReadChapterId, setLastReadChapterId] = useState<string | null>(null);
   const router = useRouter();
+
+  // Determine the displayed progress based on position of last-read chapter
+  const [displayIndex, setDisplayIndex] = useState<number | null>(null);
 
   const readCount = progress.totalChaptersRead ?? progress.readChapters?.length ?? 0;
 
@@ -42,6 +48,7 @@ export default function ReadingCard({ progress }: Props) {
     try {
       setDeleting(true);
       await API.delete(`/api/reading-progress/${novel._id}`);
+      onRemoved?.(novel._id);
     } catch (e) {
       console.error("Không thể xóa khỏi tủ truyện:", e);
     } finally {
@@ -56,8 +63,30 @@ export default function ReadingCard({ progress }: Props) {
       try {
         const res = await API.get(`/api/novels/${novel._id}/chapters?sort=asc`);
         if (!mounted) return;
-        const chapters = res.data?.chapters || [];
-        setTotalChapters(Array.isArray(chapters) ? chapters.length : 0);
+        const fetchedChapters = res.data?.chapters || [];
+        setChapters(Array.isArray(fetchedChapters) ? fetchedChapters : []);
+        setTotalChapters(Array.isArray(fetchedChapters) ? fetchedChapters.length : 0);
+
+        // Fetch detailed reading progress for this novel to determine last-read chapter
+        try {
+          const progRes = await API.get(`/api/reading-progress/${novel._id}`);
+          if (!mounted) return;
+          const rp = progRes.data?.readingProgress;
+          // Prefer last reading session chapter if available
+          const sessionLast = rp?.readingSessions?.length ? rp.readingSessions[rp.readingSessions.length - 1]?.chapter : null;
+          const readChLast = rp?.readChapters?.length ? (rp.readChapters[rp.readChapters.length - 1]._id || rp.readChapters[rp.readChapters.length - 1]) : null;
+          const lastId = sessionLast?.toString() || readChLast?.toString() || (progress.readChapters?.length ? (progress.readChapters[progress.readChapters.length - 1] as any)?.toString?.() : null);
+          setLastReadChapterId(lastId || null);
+          if (lastId) {
+            const idx = (Array.isArray(fetchedChapters) ? fetchedChapters.findIndex((c: any) => (c._id || c.id) === lastId) : -1);
+            if (idx >= 0) setDisplayIndex(idx + 1);
+            else setDisplayIndex(null);
+          } else {
+            setDisplayIndex(null);
+          }
+        } catch (e) {
+          // ignore, no auth or no progress
+        }
       } catch {
         if (!mounted) return;
         setTotalChapters(null);
@@ -75,6 +104,7 @@ export default function ReadingCard({ progress }: Props) {
             src={novel.coverImageUrl || novel.coverImage || process.env.NEXT_PUBLIC_DEFAULT_COVER || "/default-cover.jpg"}
             alt={novel.title || "Bìa truyện"}
             fill
+            sizes="56px"
             className="object-cover transition-transform duration-300"
           />
         </div>
@@ -82,7 +112,11 @@ export default function ReadingCard({ progress }: Props) {
         <div className="flex-1 pl-2">
           <p className="font-medium line-clamp-1">{novel.title}</p>
           <p className="text-sm text-muted-foreground">
-            Đã đọc {readCount}{totalChapters ? `/${totalChapters} chương` : " chương"}
+            {displayIndex != null ? (
+              <>Đã đọc {displayIndex}/{totalChapters ?? "?"} chương</>
+            ) : (
+              <>Đã đọc {readCount}{totalChapters ? `/${totalChapters} chương` : " chương"}</>
+            )}
           </p>
         </div>
 
@@ -112,17 +146,25 @@ export default function ReadingCard({ progress }: Props) {
               src={novel.coverImageUrl || novel.coverImage || process.env.NEXT_PUBLIC_DEFAULT_COVER || "/default-cover.jpg"}
               alt={novel.title || "Bìa truyện"}
               fill
+              sizes="72px"
               className="object-cover"
             />
           </div>
           <div>
             <h3 className="font-semibold">{novel.title}</h3>
-            <p className="text-sm text-muted-foreground">Đã đọc {readCount}{totalChapters ? `/${totalChapters} chương` : " chương"}</p>
+            <p className="text-sm text-muted-foreground">
+              {displayIndex != null ? (
+                <>Đã đọc {displayIndex}/{totalChapters ?? "?"} chương</>
+              ) : (
+                <>Đã đọc {readCount}{totalChapters ? `/${totalChapters} chương` : " chương"}</>
+              )}
+            </p>
           </div>
         </div>
 
         <div className="mt-6 space-y-3">
-          <Link href={`/novels/${novel._id}`} className="block text-center py-3 rounded-lg bg-primary text-white">
+          {/* If we know the last read chapter, go directly to it */}
+          <Link href={lastReadChapterId ? `/novels/${novel._id}/chapters/${lastReadChapterId}` : `/novels/${novel._id}`} className="block text-center py-3 rounded-lg bg-primary text-white">
             Đọc tiếp
           </Link>
 

@@ -6,7 +6,7 @@ import AppError from "../middlewares/errorHandler.js";
 // Create or update reading progress
 export const createReadingProgress = async (req, res, next) => {
   try {
-    const { novelId, chapterId, isRead, timeSpent = 0 } = req.body;
+    const { novelId, chapterId, isRead, timeSpent = 0, startedAt, completedAt } = req.body;
     const userId = req.user.userId;
 
     if (!novelId || !chapterId) {
@@ -40,15 +40,39 @@ export const createReadingProgress = async (req, res, next) => {
       });
     }
 
-    // Add chapter to read chapters if not already read
-    if (isRead && !readingProgress.readChapters.includes(chapterId)) {
-      readingProgress.addReadChapter(chapterId, timeSpent);
+    // Add chapter to read chapters and always record a reading session
+    const chapterIdStr = chapterId.toString();
+    const alreadyRead = readingProgress.readChapters.some(id => id.toString() === chapterIdStr);
+    if (isRead) {
+      const sessionTimes = {
+        startedAt: startedAt ? new Date(startedAt) : undefined,
+        completedAt: completedAt ? new Date(completedAt) : undefined,
+      };
+      // addReadChapter will always append a reading session and only add to readChapters once
+      readingProgress.addReadChapter(chapterId, timeSpent, sessionTimes);
 
-      // Calculate completion percentage
+      // Calculate completion percentage (may not change if already read)
       const totalChapters = await Chapter.countDocuments({ novel: novelId });
       readingProgress.calculateCompletionPercentage(totalChapters);
 
       await readingProgress.save();
+    }
+
+    // If user marked chapter as read (even if already read), record a view increment
+    if (isRead) {
+      try {
+        const last = readingProgress.lastViewIncrementAt ? new Date(readingProgress.lastViewIncrementAt).getTime() : 0;
+        const now = Date.now();
+        // only increment once per minute per user-novel
+        if (!last || now - last >= 60_000) {
+          await Novel.findByIdAndUpdate(novelId, { $inc: { views: 1 } });
+          readingProgress.lastViewIncrementAt = new Date();
+          await readingProgress.save();
+        }
+      } catch (e) {
+        // don't fail the whole request if view increment fails; log and continue
+        console.error('Failed to increment novel views:', e);
+      }
     }
 
     res.status(201).json({
@@ -124,7 +148,7 @@ export const getAllReadingProgress = async (req, res, next) => {
     const readingProgressList = await ReadingProgress.find({
       user: userId
     })
-    .populate('novel', 'title description coverImage averageRating')
+    .populate('novel', 'title description coverImageUrl averageRating')
     .sort({ lastReadAt: -1 })
     .skip(skip)
     .limit(limitNum);
@@ -185,7 +209,9 @@ export const updateReadingProgress = async (req, res, next) => {
     // Add new chapters to read chapters
     let newChaptersAdded = 0;
     for (const chapterId of readChapterIds) {
-      if (!readingProgress.readChapters.includes(chapterId)) {
+      const chapterIdStr = chapterId.toString();
+      const alreadyRead = readingProgress.readChapters.some(id => id.toString() === chapterIdStr);
+      if (!alreadyRead) {
         readingProgress.addReadChapter(chapterId, timeSpent);
         newChaptersAdded++;
       }
@@ -196,6 +222,21 @@ export const updateReadingProgress = async (req, res, next) => {
     readingProgress.calculateCompletionPercentage(totalChapters);
 
     await readingProgress.save();
+
+    // Rate-limited increment: at most 1 view per user-novel per minute
+    if (newChaptersAdded > 0) {
+      try {
+        const last = readingProgress.lastViewIncrementAt ? new Date(readingProgress.lastViewIncrementAt).getTime() : 0;
+        const now = Date.now();
+        if (!last || now - last >= 60_000) {
+          await Novel.findByIdAndUpdate(novelId, { $inc: { views: 1 } });
+          readingProgress.lastViewIncrementAt = new Date();
+          await readingProgress.save();
+        }
+      } catch (e) {
+        console.error('Failed to increment novel views:', e);
+      }
+    }
 
     res.json({
       message: `${newChaptersAdded} chương mới đã được thêm vào tiến trình đọc`,

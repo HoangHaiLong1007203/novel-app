@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import ChapterItem, { NumberAvatar } from "@/components/novel/ChapterItem";
 import ChapterCreateDialog from "@/components/novel/ChapterCreateDialog";
@@ -42,6 +42,49 @@ export default function ChapterList({ chapters, mode = "read", novelId, initialA
   const [editing, setEditing] = useState<(Chapter & { content?: string }) | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const confirm = useConfirm();
+  const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
+  const pathname = typeof window !== "undefined" ? window.location.pathname : null;
+
+  useEffect(() => {
+    if (mode === "modify") {
+      setActiveChapterId(null);
+      return;
+    }
+
+    let mounted = true;
+
+    // If we're inside a chapter page URL, derive current chapter id from path
+    if (pathname && pathname.includes("/chapters/")) {
+      const parts = pathname.split("/").filter(Boolean);
+      const last = parts[parts.length - 1] || null;
+      if (mounted) setActiveChapterId(last);
+      return () => {
+        mounted = false;
+      };
+    }
+
+    // Otherwise, try to fetch reading progress (if novelId provided) to get last-read chapter
+    if (!novelId) {
+      setActiveChapterId(null);
+      return;
+    }
+
+    (async () => {
+      try {
+        const rpRes = await API.get(`/api/reading-progress/${encodeURIComponent(novelId)}`);
+        if (!mounted) return;
+        const rp = rpRes.data?.readingProgress;
+        const sessionLast = rp?.readingSessions?.length ? rp.readingSessions[rp.readingSessions.length - 1]?.chapter : null;
+        const readChLast = rp?.readChapters?.length ? (rp.readChapters[rp.readChapters.length - 1]._id || rp.readChapters[rp.readChapters.length - 1]) : null;
+        const lastId = sessionLast?.toString() || readChLast?.toString() || null;
+        if (mounted) setActiveChapterId(lastId);
+      } catch (e) {
+        if (mounted) setActiveChapterId(null);
+      }
+    })();
+
+    return () => { mounted = false };
+  }, [pathname, novelId, mode]);
 
   const sorted = useMemo(() => {
     return asc
@@ -118,6 +161,7 @@ export default function ChapterList({ chapters, mode = "read", novelId, initialA
                   <ChapterItem
                       key={ch._id}
                       chapter={{ _id: ch._id, chapterNumber: Number(ch.chapterNumber ?? 0), title: ch.title || "", isLocked: ch.isLocked }}
+                      isActive={Boolean(activeChapterId && activeChapterId === ch._id)}
                     />
                 );
               }

@@ -3,7 +3,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog";
@@ -18,7 +18,7 @@ import ChapterList from "../../../../components/novel/ChapterList";
 import NovelStats from "@/components/novel/NovelStats";
 import NovelCarousel from "@/components/novel/NovelCarousel";
 import NovelTile from "@/components/novel/NovelTile";
-import { API } from "@/lib/api";
+import { API, addBookmark, getUserBookmarks, removeBookmark } from "@/lib/api";
 
 interface Novel {
   _id: string;
@@ -60,6 +60,7 @@ export default function NovelDetailPage() {
   const router = useRouter();
   const [novel, setNovel] = useState<Novel | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [lastReadChapterId, setLastReadChapterId] = useState<string | null>(null);
   const [chaptersAsc] = useState(true);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -71,20 +72,26 @@ export default function NovelDetailPage() {
   const [inBookshelf, setInBookshelf] = useState(false);
   const [removing, setRemoving] = useState(false);
 
+  const normalizedNovelId = useMemo(() => {
+    if (typeof id === "string") return id;
+    if (Array.isArray(id)) return id[0];
+    return "";
+  }, [id]);
+
   useEffect(() => {
-    // Check if this novel is already in user's bookshelf
-    if (!id) return;
+    // Check if this novel is already bookmarked
+    if (!normalizedNovelId) return;
     if (!user) {
       setInBookshelf(false);
       return;
     }
 
     let mounted = true;
-    API.get(`/api/reading-progress/${id}`)
+    getUserBookmarks(1, 1, normalizedNovelId)
       .then((res) => {
         if (!mounted) return;
-        const prog = res.data?.readingProgress;
-        setInBookshelf(!!prog);
+        const bookmarks = res?.bookmarks || [];
+        setInBookshelf(bookmarks.length > 0);
       })
       .catch(() => {
         if (!mounted) return;
@@ -94,7 +101,7 @@ export default function NovelDetailPage() {
     return () => {
       mounted = false;
     };
-  }, [id, user]);
+  }, [normalizedNovelId, user]);
 
   useEffect(() => {
     if (!id) return;
@@ -105,7 +112,7 @@ export default function NovelDetailPage() {
         console.log("[debug] fetched novel:", res.data?.novel);
         const chaptersRes = await API.get(`/api/novels/${id}/chapters?sort=asc`);
         setChapters(chaptersRes.data?.chapters || []);
-        // Fetch reviews nếu có token
+        // Fetch reviews và reading progress nếu có token
         const accessToken = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
         if (accessToken && accessToken !== 'undefined' && accessToken !== 'null') {
           try {
@@ -113,6 +120,17 @@ export default function NovelDetailPage() {
             setReviews(reviewsRes.data?.reviews || []);
           } catch {
             setReviews([]);
+          }
+          // Try fetching detailed reading progress to know last-read chapter
+          try {
+            const rpRes = await API.get(`/api/reading-progress/${id}`);
+            const rp = rpRes.data?.readingProgress;
+            const sessionLast = rp?.readingSessions?.length ? rp.readingSessions[rp.readingSessions.length - 1]?.chapter : null;
+            const readChLast = rp?.readChapters?.length ? (rp.readChapters[rp.readChapters.length - 1]._id || rp.readChapters[rp.readChapters.length - 1]) : null;
+            const lastId = sessionLast?.toString() || readChLast?.toString() || null;
+            setLastReadChapterId(lastId || null);
+          } catch {
+            setLastReadChapterId(null);
           }
         } else {
           setReviews([]);
@@ -202,12 +220,12 @@ export default function NovelDetailPage() {
       <div className="max-w-5xl mx-auto p-6">
         {/* header info */}
         <div className="flex flex-col md:flex-row gap-6 items-center md:items-start">
-          <div className="w-44 h-60 rounded-lg overflow-hidden shadow-lg flex-shrink-0">
+          <div className="relative w-44 h-60 rounded-lg overflow-hidden shadow-lg flex-shrink-0">
             <Image
               src={coverImageUrl}
               alt={title}
-              width={176}
-              height={240}
+              fill
+              sizes="176px"
               className="object-cover"
             />
           </div>
@@ -228,82 +246,81 @@ export default function NovelDetailPage() {
 
             <div className="flex gap-3 mt-4">
               {firstChapter ? (
-                <Link href={`/novels/${id}/chapters/${firstChapter._id}`}>
+                <Link href={lastReadChapterId ? `/novels/${id}/chapters/${lastReadChapterId}` : `/novels/${id}/chapters/${firstChapter._id}`}>
                   <Button>Đọc truyện</Button>
                 </Link>
               ) : (
                 <Button disabled>Đọc truyện</Button>
               )}
-                {inBookshelf ? (
+              {inBookshelf ? (
+                <Button
+                  variant="destructive"
+                  onClick={async () => {
+                    if (!user || !normalizedNovelId) {
+                      setShowLoginDialog(true);
+                      return;
+                    }
+                    try {
+                      setRemoving(true);
+                      await removeBookmark(normalizedNovelId);
+                      setInBookshelf(false);
+                    } catch (e) {
+                      console.error("Không thể xóa khỏi tủ truyện:", e);
+                    } finally {
+                      setRemoving(false);
+                    }
+                  }}
+                  disabled={removing}
+                >
+                  {removing ? "Đang xóa..." : "Xóa khỏi tủ truyện"}
+                </Button>
+              ) : (
+                <>
                   <Button
-                    variant="destructive"
+                    variant="secondary"
                     onClick={async () => {
-                      if (!user) {
+                      if (!user || !normalizedNovelId) {
                         setShowLoginDialog(true);
                         return;
                       }
+
                       try {
-                        setRemoving(true);
-                        await API.delete(`/api/reading-progress/${id}`);
-                        setInBookshelf(false);
+                        setAdding(true);
+                        await addBookmark(normalizedNovelId);
+                        setInBookshelf(true);
                       } catch (e) {
-                        console.error("Không thể xóa khỏi tủ truyện:", e);
+                        console.error("Không thể thêm vào tủ truyện:", e);
                       } finally {
-                        setRemoving(false);
+                        setAdding(false);
                       }
                     }}
-                    disabled={removing}
+                    disabled={adding}
                   >
-                    {removing ? "Đang xóa..." : "Xóa khỏi tủ truyện"}
+                    {adding ? "Đang thêm..." : "Thêm vào tủ truyện"}
                   </Button>
-                ) : (
-                  <>
-                    <Button
-                      variant="secondary"
-                      onClick={async () => {
-                        if (!user) {
-                          setShowLoginDialog(true);
-                          return;
-                        }
 
-                        try {
-                          setAdding(true);
-                          // Create reading progress / add to bookshelf
-                          await API.put(`/api/reading-progress/${id}`, { readChapterIds: [] });
-                          setInBookshelf(true);
-                        } catch (e) {
-                          console.error("Không thể thêm vào tủ truyện:", e);
-                        } finally {
-                          setAdding(false);
-                        }
-                      }}
-                      disabled={adding}
-                    >
-                      {adding ? "Đang thêm..." : "Thêm vào tủ truyện"}
-                    </Button>
-
-                    <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Yêu cầu đăng nhập</DialogTitle>
-                          <DialogDescription>cần phải đăng nhập để thêm vào tủ truyện</DialogDescription>
-                        </DialogHeader>
-                        <DialogFooter>
-                          <Button variant="ghost" onClick={() => setShowLoginDialog(false)}>Để sau</Button>
-                          <Button
-                            onClick={() => {
-                              setShowLoginDialog(false);
-                              router.push(`/login?redirect=${encodeURIComponent(`/novels/${id}`)}`);
-                            }}
-                          >
-                            Ok
-                          </Button>
-                        </DialogFooter>
-                        <DialogClose />
-                      </DialogContent>
-                    </Dialog>
-                  </>
-                )}
+                  <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Yêu cầu đăng nhập</DialogTitle>
+                        <DialogDescription>cần phải đăng nhập để thêm vào tủ truyện</DialogDescription>
+                      </DialogHeader>
+                      <DialogFooter>
+                        <Button variant="ghost" onClick={() => setShowLoginDialog(false)}>Để sau</Button>
+                        <Button
+                          onClick={() => {
+                            setShowLoginDialog(false);
+                            router.push(`/login?redirect=${encodeURIComponent(`/novels/${id}`)}`);
+                          }}
+                        >
+                          Ok
+                        </Button>
+                      </DialogFooter>
+                      <DialogClose />
+                    </DialogContent>
+                  </Dialog>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -419,7 +436,7 @@ export default function NovelDetailPage() {
               <ReviewCommentPane id="comment-pane" mode="comment" items={comments} currentUserId={user?._id ?? null} onReply={undefined} onReport={undefined} onDelete={undefined} />
             </TabsContent>
             <TabsContent value="chuong">
-              <ChapterList chapters={chapters} mode="read" initialAsc={chaptersAsc} />
+              <ChapterList chapters={chapters} mode="read" novelId={normalizedNovelId} initialAsc={chaptersAsc} />
             </TabsContent>
           </Tabs>
         </div>

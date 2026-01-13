@@ -33,6 +33,10 @@ const readingProgressSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    // Timestamp when we last incremented the novel view for this user/novel
+    lastViewIncrementAt: {
+      type: Date,
+    },
     // Track reading sessions
     readingSessions: [{
       chapter: {
@@ -71,20 +75,39 @@ readingProgressSchema.virtual('canReview').get(function() {
 });
 
 // Method to add a read chapter
-readingProgressSchema.methods.addReadChapter = function(chapterId, timeSpent = 0) {
-  if (!this.readChapters.includes(chapterId)) {
+readingProgressSchema.methods.addReadChapter = function(chapterId, timeSpent = 0, sessionTimes = {}) {
+  const chapterIdStr = chapterId.toString();
+  const alreadyRead = this.readChapters.some(id => id.toString() === chapterIdStr);
+
+  const startedAt = sessionTimes.startedAt instanceof Date
+    ? sessionTimes.startedAt
+    : sessionTimes.startedAt
+      ? new Date(sessionTimes.startedAt)
+      : new Date();
+  const completedAt = sessionTimes.completedAt instanceof Date
+    ? sessionTimes.completedAt
+    : sessionTimes.completedAt
+      ? new Date(sessionTimes.completedAt)
+      : new Date();
+
+  // Always record a reading session (so we can count every completed read)
+  this.readingSessions.push({
+    chapter: chapterId,
+    startedAt,
+    completedAt,
+    timeSpent: timeSpent,
+  });
+
+  // Only add to readChapters the first time the chapter is read
+  if (!alreadyRead) {
     this.readChapters.push(chapterId);
     this.totalChaptersRead = this.readChapters.length;
-    this.lastReadAt = new Date();
-
-    // Add reading session
-    this.readingSessions.push({
-      chapter: chapterId,
-      startedAt: new Date(),
-      completedAt: new Date(),
-      timeSpent: timeSpent,
-    });
+    this.lastReadAt = completedAt;
+  } else {
+    // update lastReadAt even for re-reads
+    this.lastReadAt = completedAt;
   }
+
   return this;
 };
 

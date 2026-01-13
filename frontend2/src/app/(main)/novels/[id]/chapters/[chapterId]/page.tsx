@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { API, fetchReaderSettings } from "@/lib/api";
+import { API, fetchReaderSettings, markChapterAsRead } from "@/lib/api";
 import ChapterHeader from "@/components/novel/ChapterHeader";
 import ChapterFooterActions from "@/components/novel/ChapterFooterActions";
 import ChapterReader from "@/components/novel/ChapterReader";
@@ -33,10 +33,47 @@ export default function ChapterPage() {
   const router = useRouter();
   const [showSettings, setShowSettings] = useState(false);
   const [readerSettings, setReaderSettings] = useState<ReaderSettingsPayload>({});
+  const normalizedNovelId = typeof id === "string" ? id : Array.isArray(id) ? id[0] : "";
+  const normalizedChapterId = typeof chapterId === "string" ? chapterId : Array.isArray(chapterId) ? chapterId[0] : "";
+  const sessionStartRef = useRef<number | null>(null);
+  const sessionSubmittedRef = useRef(false);
+  const readableRef = useRef(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [dialogWidth, setDialogWidth] = useState<number | null>(null);
 
   const localKey = "novel-app-reader-settings";
+
+  const flushReadingSession = useCallback(async () => {
+    if (sessionSubmittedRef.current) return;
+    if (!normalizedNovelId || !normalizedChapterId || !sessionStartRef.current) return;
+    if (!readableRef.current) {
+      sessionSubmittedRef.current = true;
+      return;
+    }
+    if (typeof window === "undefined") return;
+
+    const accessToken = localStorage.getItem("accessToken");
+    if (!accessToken || accessToken === "undefined" || accessToken === "null") {
+      sessionSubmittedRef.current = true;
+      return;
+    }
+
+    sessionSubmittedRef.current = true;
+    const finishedAt = Date.now();
+    const payload = {
+      novelId: normalizedNovelId,
+      chapterId: normalizedChapterId,
+      startedAt: new Date(sessionStartRef.current).toISOString(),
+      completedAt: new Date(finishedAt).toISOString(),
+      timeSpent: Math.max(0, Math.round((finishedAt - sessionStartRef.current) / 60000)),
+    };
+
+    try {
+      await markChapterAsRead(payload);
+    } catch (err) {
+      console.error("Không thể cập nhật tiến trình đọc:", err);
+    }
+  }, [normalizedNovelId, normalizedChapterId]);
 
   // Load reader settings on page load: prefer server settings when logged in, otherwise use localStorage
   useEffect(() => {
@@ -75,7 +112,7 @@ export default function ChapterPage() {
     // only run once on mount
   }, []);
 
-  useEffect(() => {
+    useEffect(() => {
       if (!chapterId) return;
       const fetchData = async () => {
         try {
@@ -113,12 +150,50 @@ export default function ChapterPage() {
       fetchData();
     }, [id, chapterId]);
 
+  useEffect(() => {
+    if (!normalizedChapterId) return;
+    sessionStartRef.current = Date.now();
+    sessionSubmittedRef.current = false;
+    return () => {
+      void flushReadingSession();
+    };
+  }, [normalizedChapterId, flushReadingSession]);
+
   // Scroll to top when switching to a different chapter
   useEffect(() => {
     if (typeof window === "undefined") return;
     // Use instant scroll to avoid visual jump during navigation timing
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [chapterId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleVisibility = () => {
+      if (document.hidden) {
+        void flushReadingSession();
+      }
+    };
+
+    const handlePageHide = () => {
+      void flushReadingSession();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("beforeunload", handlePageHide);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("beforeunload", handlePageHide);
+    };
+  }, [flushReadingSession]);
+
+  // receive readable updates from ChapterReader
+  const handleReadable = useCallback((readable: boolean) => {
+    readableRef.current = Boolean(readable);
+  }, []);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -176,8 +251,16 @@ export default function ChapterPage() {
         chapterTitle={`Chương ${chapter.chapterNumber}: ${chapter.title}`}
         hasPrev={hasPrev}
         hasNext={hasNext}
-        onPrev={() => prevId && router.push(`/novels/${id}/chapters/${prevId}`)}
-        onNext={() => nextId && router.push(`/novels/${id}/chapters/${nextId}`)}
+        onPrev={() => {
+          if (!prevId) return;
+          void flushReadingSession();
+          router.push(`/novels/${id}/chapters/${prevId}`);
+        }}
+        onNext={() => {
+          if (!nextId) return;
+          void flushReadingSession();
+          router.push(`/novels/${id}/chapters/${nextId}`);
+        }}
         showSettings={showSettings}
         onToggleSettings={() => setShowSettings((s) => !s)}
         readerSettings={readerSettings}
@@ -194,7 +277,7 @@ export default function ChapterPage() {
       </Dialog>
 
       <div className="p-6" style={{ background: readerSettings.backgroundColor || undefined }} ref={containerRef}>
-        <ChapterReader chapterId={chapterId as string} readerSettings={readerSettings} />
+        <ChapterReader chapterId={normalizedChapterId || (chapterId as string)} readerSettings={readerSettings} onReadable={handleReadable} />
       </div>
 
       {/* measure container width for dialog sizing */}

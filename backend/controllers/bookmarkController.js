@@ -54,24 +54,30 @@ export const removeBookmark = async (req, res, next) => {
 export const getUserBookmarks = async (req, res, next) => {
   try {
     const userId = req.user.userId;
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, novelId } = req.query;
+    const pageNum = Math.max(1, parseInt(page));
+    const limitNum = Math.max(1, parseInt(limit));
+    const filter = { user: userId };
+    if (novelId) {
+      filter.novel = novelId;
+    }
 
-    const bookmarks = await Bookmark.find({ user: userId })
+    const bookmarks = await Bookmark.find(filter)
       .populate('novel', 'title author type description genres status coverImageUrl views averageRating')
       .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
+      .limit(limitNum)
+      .skip((pageNum - 1) * limitNum);
 
-    const total = await Bookmark.countDocuments({ user: userId });
+    const total = await Bookmark.countDocuments(filter);
 
     res.json({
       bookmarks,
       pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(total / limit),
+        currentPage: pageNum,
+        totalPages: Math.ceil(total / limitNum),
         totalBookmarks: total,
-        hasNextPage: page < Math.ceil(total / limit),
-        hasPrevPage: page > 1
+        hasNextPage: pageNum * limitNum < total,
+        hasPrevPage: pageNum > 1
       }
     });
   } catch (error) {

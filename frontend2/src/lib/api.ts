@@ -61,6 +61,39 @@ export async function getUserReadingProgress(page = 1, limit = 12) {
   return res.data;
 }
 
+export async function getUserBookmarks(page = 1, limit = 12, novelId?: string) {
+  const params: Record<string, unknown> = { page, limit };
+  if (novelId) {
+    params.novelId = novelId;
+  }
+  const res = await API.get("/api/bookmarks", { params });
+  return res.data;
+}
+
+export async function addBookmark(novelId: string) {
+  const res = await API.post(`/api/bookmarks/${novelId}`);
+  return res.data;
+}
+
+export async function removeBookmark(novelId: string) {
+  const res = await API.delete(`/api/bookmarks/${novelId}`);
+  return res.data;
+}
+
+export async function markChapterAsRead(params: {
+  novelId: string;
+  chapterId: string;
+  startedAt: string;
+  completedAt: string;
+  timeSpent: number;
+}) {
+  const res = await API.post("/api/reading-progress", {
+    ...params,
+    isRead: true,
+  });
+  return res.data;
+}
+
 export type ReaderSettingsPayload = {
   fontSize?: number;
   fontFamily?: string;

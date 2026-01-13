@@ -15,6 +15,7 @@ interface ChapterItemProps {
     createdAt?: string;
     isLocked?: boolean;
   };
+  isActive?: boolean;
 }
 
 interface NumberAvatarProps {
@@ -67,7 +68,7 @@ export function NumberAvatar({ number, className, isLocked }: NumberAvatarProps)
   );
 }
 
-export default function ChapterItem({ chapter }: ChapterItemProps) {
+export default function ChapterItem({ chapter, isActive }: ChapterItemProps) {
   const params = useParams();
   const novelId = Array.isArray(params?.id) ? params?.id[0] : params?.id;
 
@@ -77,10 +78,10 @@ export default function ChapterItem({ chapter }: ChapterItemProps) {
   return (
     <Link href={href} className="block">
       <Card className="mb-2 py-0 bg-background/80 hover:shadow-md transition-shadow">
-          <CardContent className="flex gap-3 items-center py-2 px-2">
+          <CardContent className={"flex gap-3 items-center py-2 px-2 " + (isActive ? "bg-primary/5" : "")}>
             <NumberAvatar number={chapter.chapterNumber} isLocked={chapter.isLocked} />
           <div className="flex-1 min-w-0">
-              <div className="font-semibold text-sm truncate">{chapter.title}</div>
+              <div className={(isActive ? "font-bold text-primary" : "font-semibold") + " text-sm truncate"}>{chapter.title}</div>
             {chapter.createdAt && (
               <div className="text-xs opacity-60 mt-1">{new Date(chapter.createdAt).toLocaleString()}</div>
             )}

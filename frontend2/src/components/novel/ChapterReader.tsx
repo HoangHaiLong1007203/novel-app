@@ -40,9 +40,11 @@ interface ChapterMeta {
 const ChapterReader = ({
   chapterId,
   readerSettings,
+  onReadable,
 }: {
   chapterId: string;
   readerSettings?: ReaderSettingsPayload;
+  onReadable?: (readable: boolean) => void;
 }) => {
   const [chapter, setChapter] = useState<ChapterMeta | null>(null);
   const [htmlContent, setHtmlContent] = useState("<p>Đang tải nội dung...</p>");
@@ -90,35 +92,49 @@ const ChapterReader = ({
       const meta = await getChapterMeta(chapterId);
       setChapter(meta);
 
-      // Always request access URL (backend will return public or signed URL)
-      try {
-        const access = await requestChapterAccess(chapterId);
-        const accessObj = access as AccessResponse;
-        if (accessObj.html) {
-          // mark as accessible and use inline HTML
-          setChapter((c) => (c ? { ...c, access: { ...c.access, hasAccess: true } } : c));
-          setHtmlContent(accessObj.html);
-        } else if (accessObj.htmlUrl) {
-          setChapter((c) => (c ? { ...c, access: { ...c.access, hasAccess: true } } : c));
-          await fetchHtmlFromUrl(accessObj.htmlUrl);
-        } else if (!meta.access?.requiresPurchase && meta.access?.publicHtmlUrl) {
-          await fetchHtmlFromUrl(meta.access.publicHtmlUrl);
-        } else {
-          setHtmlContent("<p>Chương này đang bị khoá. Mua để tiếp tục đọc.</p>");
-        }
-      } catch (accessErr: unknown) {
-        const status = typeof accessErr === 'object' && accessErr !== null && 'response' in accessErr
-          ? (accessErr as { response?: { status?: number } }).response?.status
-          : undefined;
-        if (status === 402) {
-          setHtmlContent("<p>Chương này đang bị khoá. Mua để tiếp tục đọc.</p>");
-        } else if (status === 401) {
-          setHtmlContent("<p>Vui lòng đăng nhập để xem chương này.</p>");
-        } else {
-          if (meta.access?.publicHtmlUrl) {
+      // If chapter requires purchase and server indicates user has no access,
+      // don't call the access endpoint (which will return 402) — just show purchase UI.
+      if (meta.access?.requiresPurchase && !meta.access?.hasAccess) {
+        setHtmlContent("<p>Chương này đang bị khoá. Mua để tiếp tục đọc.</p>");
+        onReadable?.(false);
+      } else {
+        // Request access URL (backend will return public or signed URL)
+        try {
+          const access = await requestChapterAccess(chapterId);
+          const accessObj = access as AccessResponse;
+          if (accessObj.html) {
+            // mark as accessible and use inline HTML
+            setChapter((c) => (c ? { ...c, access: { ...c.access, hasAccess: true } } : c));
+            setHtmlContent(accessObj.html);
+            onReadable?.(true);
+          } else if (accessObj.htmlUrl) {
+            setChapter((c) => (c ? { ...c, access: { ...c.access, hasAccess: true } } : c));
+            await fetchHtmlFromUrl(accessObj.htmlUrl);
+            onReadable?.(true);
+          } else if (!meta.access?.requiresPurchase && meta.access?.publicHtmlUrl) {
             await fetchHtmlFromUrl(meta.access.publicHtmlUrl);
+            onReadable?.(true);
           } else {
-            throw accessErr;
+            setHtmlContent("<p>Chương này đang bị khoá. Mua để tiếp tục đọc.</p>");
+            onReadable?.(false);
+          }
+        } catch (accessErr: unknown) {
+          const status = typeof accessErr === 'object' && accessErr !== null && 'response' in accessErr
+            ? (accessErr as { response?: { status?: number } }).response?.status
+            : undefined;
+          if (status === 402) {
+            setHtmlContent("<p>Chương này đang bị khoá. Mua để tiếp tục đọc.</p>");
+            onReadable?.(false);
+          } else if (status === 401) {
+            setHtmlContent("<p>Vui lòng đăng nhập để xem chương này.</p>");
+            onReadable?.(false);
+          } else {
+            if (meta.access?.publicHtmlUrl) {
+              await fetchHtmlFromUrl(meta.access.publicHtmlUrl);
+              onReadable?.(true);
+            } else {
+              throw accessErr;
+            }
           }
         }
       }
@@ -142,11 +158,13 @@ const ChapterReader = ({
         if (accessObj.html) {
           setChapter((c) => (c ? { ...c, access: { ...c.access, hasAccess: true } } : c));
           setHtmlContent(accessObj.html);
+          onReadable?.(true);
           const okMsg = "Đã nhận URL đọc chương";
           toast.success(okMsg, { duration: 1000 });
         } else if (accessObj.htmlUrl) {
           setChapter((c) => (c ? { ...c, access: { ...c.access, hasAccess: true } } : c));
           await fetchHtmlFromUrl(accessObj.htmlUrl);
+          onReadable?.(true);
           const okMsg = "Đã nhận URL đọc chương";
           toast.success(okMsg, { duration: 1000 });
       }
