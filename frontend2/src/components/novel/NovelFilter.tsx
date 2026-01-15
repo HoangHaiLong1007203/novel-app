@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import ChapterRangeSelect from "@/components/ui/ChapterRangeSelect";
@@ -17,12 +17,13 @@ interface FilterState {
 interface NovelFilterProps {
   layout: "vertical" | "horizontal";
   onFilterChange?: (filter: FilterState) => void;
+  initialFilters?: FilterState;
 }
 
 
 
 export default function NovelFilter(props: NovelFilterProps) {
-  const { onFilterChange } = props;
+  const { onFilterChange, initialFilters } = props;
   const [filter, setFilter] = useState<FilterState>({
     categories: [],
     genres: [],
@@ -31,6 +32,14 @@ export default function NovelFilter(props: NovelFilterProps) {
     sortBy: null,
   });
   const [tempFilter, setTempFilter] = useState(filter);
+
+  // Sync internal state when parent provides initial filters (e.g., when restoring from URL)
+  useEffect(() => {
+    if (initialFilters) {
+      setFilter(initialFilters);
+      setTempFilter(initialFilters);
+    }
+  }, [initialFilters]);
   // const [range, setRange] = useState<[number, number]>([0, 2100]); // 2100 internal = 2000+
   // 📏 làm tròn về mốc gần nhất
   // const snapToNearestMark = (value: number): number => {
@@ -62,7 +71,7 @@ export default function NovelFilter(props: NovelFilterProps) {
     setTempFilter({ ...tempFilter, [key]: newArr });
   };
 
-  const selectSort = (value: string) => setTempFilter({ ...tempFilter, sortBy: value });
+  const selectSort = (value: string | null) => setTempFilter({ ...tempFilter, sortBy: value });
 
   const resetFilter = () => {
     const reset = {
@@ -159,19 +168,21 @@ export default function NovelFilter(props: NovelFilterProps) {
       <div>
         <h3 className="font-semibold mb-2">Sắp xếp theo</h3>
         <div className="flex flex-wrap gap-2">
-          {[
-            { value: "none", label: "Mặc định" },
-            { value: "latest", label: "Mới nhất" },
-            { value: "oldest", label: "Cũ nhất" },
-            { value: "mostChapters", label: "Nhiều chương nhất" },
-            { value: "leastChapters", label: "Ít chương nhất" },
-            { value: "views_desc", label: "Nhiều lượt đọc" },
-            { value: "reviews_desc", label: "Nhiều review" },
-            { value: "completed_recent", label: "Mới hoàn thành" },
-            { value: "updated_recent", label: "Mới cập nhật" },
-          ].map((s) => (
+          {(
+            [
+              { value: null, label: "Mặc định" },
+              { value: "latest", label: "Mới nhất" },
+              { value: "oldest", label: "Cũ nhất" },
+              { value: "mostChapters", label: "Nhiều chương nhất" },
+              { value: "leastChapters", label: "Ít chương nhất" },
+              { value: "views_desc", label: "Nhiều lượt đọc" },
+              { value: "reviews_desc", label: "Nhiều review" },
+              { value: "completed_recent", label: "Mới hoàn thành" },
+              { value: "updated_recent", label: "Mới cập nhật" },
+            ] as Array<{ value: string | null; label: string }>
+          ).map((s) => (
             <Badge
-              key={s.value}
+              key={String(s.value)}
               className={`cursor-pointer px-3 py-1 ${
                 tempFilter.sortBy === s.value
                   ? "bg-primary text-white"

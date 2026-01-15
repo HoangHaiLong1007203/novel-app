@@ -78,7 +78,7 @@ export default function ChapterList({ chapters, mode = "read", novelId, initialA
         const readChLast = rp?.readChapters?.length ? (rp.readChapters[rp.readChapters.length - 1]._id || rp.readChapters[rp.readChapters.length - 1]) : null;
         const lastId = sessionLast?.toString() || readChLast?.toString() || null;
         if (mounted) setActiveChapterId(lastId);
-      } catch (e) {
+      } catch {
         if (mounted) setActiveChapterId(null);
       }
     })();

@@ -72,35 +72,13 @@ export const createNovel = async (req, res, next) => {
   }
 };
 
-// Lấy danh sách truyện với bộ lọc
+// Lấy danh sách truyện (listing)
 export const getNovels = async (req, res, next) => {
   try {
-    const {
-      genres,
-      author,
-      poster,
-      status,
-      type,
-      chapterMin,
-      chapterMax,
-      sortBy,
-      page = 1,
-      limit = 20
-    } = req.query;
+    const { page, limit, genres, author, poster, status, type, chapterMin, chapterMax, sortBy } = req.query;
+    const filter = {};
 
-    // Check if we need advanced features (chapter counts, reviews, etc.)
-    const needsAggregation = chapterMin !== undefined || chapterMax !== undefined || sortBy;
-
-    if (!needsAggregation) {
-      // Simple query for basic cases (like upload page and me/novels page without advanced filters)
-      const filter = {};
-
-      if (genres) {
-        filter.genres = { $in: genres.split(",") };
-      }
-      if (author) {
-        filter.author = author;
-      }
+    // continue to build `filter` and pipeline below
       if (poster) {
         filter.poster = poster;
       }
@@ -111,69 +89,60 @@ export const getNovels = async (req, res, next) => {
         filter.type = { $in: type.split(",") };
       }
 
-      let query = Novel.find(filter).populate("poster", "username");
+      // Use simple query when no chapter-range filters are provided
+      if (chapterMin === undefined && chapterMax === undefined) {
+        let query = Novel.find(filter).populate("poster", "username");
 
-      // Pagination
-      if (page && limit) {
-        const skip = (parseInt(page) - 1) * parseInt(limit);
-        query = query.skip(skip).limit(parseInt(limit));
+        // Pagination
+        if (page && limit) {
+          const skip = (parseInt(page) - 1) * parseInt(limit);
+          query = query.skip(skip).limit(parseInt(limit));
+        }
+
+        const novels = await query.sort({ createdAt: -1 });
+
+        // If an `author` query was provided, also match by poster.username in
+        // memory after populating `poster`. This handles cases where existing
+        // records have `author` stored as an ObjectId (e.g. poster id) instead
+        // of the author's username.
+        let novelsResult = novels;
+        if (author) {
+          novelsResult = novels.filter(n => {
+            if (n.author === author) return true;
+            if (n.poster && n.poster.username === author) return true;
+            return false;
+          });
+        }
+
+        if (page && limit) {
+          // Use filtered result length as total when author filter applied,
+          // otherwise use the collection countDocuments for performance.
+          const total = author ? novelsResult.length : await Novel.countDocuments(filter);
+          const totalPages = Math.ceil(total / parseInt(limit));
+
+          return res.json({
+            novels: novelsResult,
+            pagination: {
+              page: parseInt(page),
+              limit: parseInt(limit),
+              total,
+              totalPages
+            }
+          });
+        } else {
+          return res.json({ novels: novelsResult });
+        }
       }
-
-      const novels = await query.sort({ createdAt: -1 });
-
-      // If an `author` query was provided, also match by poster.username in
-      // memory after populating `poster`. This handles cases where existing
-      // records have `author` stored as an ObjectId (e.g. poster id) instead
-      // of the author's username.
-      let novelsResult = novels;
-      if (author) {
-        novelsResult = novels.filter(n => {
-          if (n.author === author) return true;
-          if (n.poster && n.poster.username === author) return true;
-          return false;
-        });
-      }
-
-      if (page && limit) {
-        // Use filtered result length as total when author filter applied,
-        // otherwise use the collection countDocuments for performance.
-        const total = author ? novelsResult.length : await Novel.countDocuments(filter);
-        const totalPages = Math.ceil(total / parseInt(limit));
-
-        return res.json({
-          novels: novelsResult,
-          pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
-            total,
-            totalPages
-          }
-        });
-      } else {
-        return res.json({ novels: novelsResult });
-      }
-    }
 
     // Advanced aggregation for complex queries
-    const filter = {};
 
-    if (genres) {
-      filter.genres = { $in: genres.split(",") };
-    }
-    if (author) {
-      filter.author = author;
-    }
-    if (poster) {
-      filter.poster = poster;
-    }
-    if (status) {
-      filter.status = { $in: status.split(",") };
-    }
-    if (type) {
-      filter.type = { $in: type.split(",") };
-    }
+    if (genres) filter.genres = { $in: genres.split(",") };
+    if (author) filter.author = author;
+    if (poster) filter.poster = poster;
+    if (status) filter.status = { $in: status.split(",") };
+    if (type) filter.type = { $in: type.split(",") };
 
-    // Aggregation pipeline
+    // Build aggregation pipeline
     const pipeline = [
       { $match: filter },
       {
@@ -185,6 +154,22 @@ export const getNovels = async (req, res, next) => {
         },
       },
       { $addFields: { chapterCount: { $size: "$chapters" } } },
+    ];
+
+    // Apply chapter count filter if provided (frontend sends chapterMin only when >0 and chapterMax only when <2100)
+    if (chapterMin !== undefined || chapterMax !== undefined) {
+      const chapterFilter = {};
+      if (chapterMin !== undefined && parseInt(chapterMin) > 0) chapterFilter.$gte = parseInt(chapterMin);
+      if (chapterMax !== undefined) {
+        const cm = parseInt(chapterMax);
+        // treat large sentinel (>=2000) as no upper bound
+        if (cm < 2000) chapterFilter.$lte = cm;
+      }
+      if (Object.keys(chapterFilter).length) pipeline.push({ $match: { chapterCount: chapterFilter } });
+    }
+
+    // reviews count
+    pipeline.push(
       {
         $lookup: {
           from: "reviews",
@@ -197,6 +182,7 @@ export const getNovels = async (req, res, next) => {
         },
       },
       { $addFields: { reviewCount: { $ifNull: [{ $arrayElemAt: ["$reviewCount.count", 0] }, 0] } } },
+      // comments count
       {
         $lookup: {
           from: "comments",
@@ -209,6 +195,7 @@ export const getNovels = async (req, res, next) => {
         },
       },
       { $addFields: { commentsCount: { $ifNull: [{ $arrayElemAt: ["$commentCount.count", 0] }, 0] } } },
+      // average rating
       {
         $lookup: {
           from: "reviews",
@@ -223,10 +210,10 @@ export const getNovels = async (req, res, next) => {
       { $addFields: { averageRating: { $ifNull: [{ $round: [{ $arrayElemAt: ["$avgRating.avgRating", 0] }, 1] }, 0] } } },
       { $lookup: { from: "users", localField: "poster", foreignField: "_id", as: "poster" } },
       { $unwind: { path: "$poster", preserveNullAndEmptyArrays: true } },
-      { $project: { chapters: 0, reviewCount: 0, commentCount: 0, avgRating: 0 } },
-    ];
+      { $project: { chapters: 0, reviewCount: 0, commentCount: 0, avgRating: 0 } }
+    );
 
-    // Add sort with _id as tiebreaker for stable pagination
+    // Determine sort stage
     let sortStage = { $sort: { createdAt: -1, _id: 1 } };
     if (sortBy) {
       switch (sortBy) {
@@ -243,13 +230,13 @@ export const getNovels = async (req, res, next) => {
           sortStage = { $sort: { reviewCount: -1, _id: 1 } };
           break;
         case "completed_recent":
-          // Sort by updatedAt for completed
           sortStage = { $sort: { updatedAt: -1, _id: 1 } };
           break;
         default:
           sortStage = { $sort: { createdAt: -1, _id: 1 } };
       }
     }
+
     pipeline.push(sortStage);
 
     // Add pagination if needed
@@ -258,7 +245,7 @@ export const getNovels = async (req, res, next) => {
       pipeline.push({ $skip: skip }, { $limit: parseInt(limit) });
     }
 
-    const novels = await Novel.aggregate(pipeline);
+    const novelsAgg = await Novel.aggregate(pipeline);
 
     // Get total count only if pagination is requested
     if (page && limit) {
@@ -280,20 +267,21 @@ export const getNovels = async (req, res, next) => {
       ];
       if (chapterMin !== undefined || chapterMax !== undefined) {
         const chapterFilter = {};
-        if (chapterMin !== undefined) {
+        if (chapterMin !== undefined && parseInt(chapterMin) > 0) {
           chapterFilter.$gte = parseInt(chapterMin);
         }
         if (chapterMax !== undefined) {
-          if (chapterMax === "2000") {
-            chapterFilter.$gte = 2000;
-          } else {
-            chapterFilter.$lte = parseInt(chapterMax);
+          const cm = parseInt(chapterMax);
+          if (cm < 2000) {
+            chapterFilter.$lte = cm;
           }
         }
         // Insert after $addFields chapterCount (after index 2)
-        countPipeline.splice(3, 0, {
-          $match: { chapterCount: chapterFilter }
-        });
+        if (Object.keys(chapterFilter).length) {
+          countPipeline.splice(3, 0, {
+            $match: { chapterCount: chapterFilter }
+          });
+        }
       }
       countPipeline.push({ $count: "total" });
 
@@ -302,7 +290,7 @@ export const getNovels = async (req, res, next) => {
       const totalPages = Math.ceil(total / parseInt(limit));
 
       res.json({
-        novels,
+        novels: novelsAgg,
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
@@ -313,7 +301,7 @@ export const getNovels = async (req, res, next) => {
     } else {
       // No pagination, just return novels
       res.json({
-        novels
+        novels: novelsAgg
       });
     }
   } catch (error) {
@@ -419,7 +407,17 @@ export const searchNovels = async (req, res, next) => {
 
     // Pipeline: prefer exact title, then title contains, author contains,
     // then normalized matches for diacritic-insensitive fuzzy matches.
-    const basePipeline = [
+    // Build optional filter from query params (so search can be combined with filters)
+    const { genres, status, type, chapterMin, chapterMax } = req.query;
+    const filter = {};
+    if (genres) filter.genres = { $in: String(genres).split(",") };
+    if (status) filter.status = { $in: String(status).split(",") };
+    if (type) filter.type = { $in: String(type).split(",") };
+
+    // Base pipeline: apply filter first, then compute search score
+    const basePipeline = [];
+    if (Object.keys(filter).length) basePipeline.push({ $match: filter });
+    basePipeline.push(
       { $lookup: { from: "users", localField: "poster", foreignField: "_id", as: "poster" } },
       { $unwind: { path: "$poster", preserveNullAndEmptyArrays: true } },
       {
@@ -436,19 +434,122 @@ export const searchNovels = async (req, res, next) => {
         },
       },
       { $match: { score: { $gt: 0 } } },
-      { $sort: { score: -1, updatedAt: -1 } },
-    ];
+      { $sort: { score: -1, updatedAt: -1 } }
+    );
 
-    const countPipeline = [...basePipeline, { $count: "total" }];
+    // Count total matching documents (include chapterCount if chapter filters present)
+    let countPipeline = [...basePipeline];
+    // if chapter filters exist, compute chapterCount and match
+    if (chapterMin !== undefined || chapterMax !== undefined) {
+      countPipeline.push({ $lookup: { from: "chapters", localField: "_id", foreignField: "novel", as: "chapters" } });
+      countPipeline.push({ $addFields: { chapterCount: { $size: "$chapters" } } });
+      const chapterFilter = {};
+      if (chapterMin !== undefined && parseInt(chapterMin) > 0) chapterFilter.$gte = parseInt(chapterMin);
+      if (chapterMax !== undefined) {
+        const cm = parseInt(chapterMax);
+        if (cm < 2000) chapterFilter.$lte = cm;
+      }
+      if (Object.keys(chapterFilter).length) countPipeline.push({ $match: { chapterCount: chapterFilter } });
+    }
+    countPipeline.push({ $count: "total" });
     const totalResult = await Novel.aggregate(countPipeline);
     const total = totalResult[0]?.total || 0;
 
+    // Extend pipeline to include derived fields for UI (chapterCount, commentsCount, averageRating)
     const novelsPipeline = [
       ...basePipeline,
-      { $skip: skip },
-      { $limit: l },
-      { $project: { _id: 1, title: 1, author: 1, description: 1, genres: 1, coverImageUrl: 1, poster: { username: 1 }, score: 1 } },
+      // chapters
+      {
+        $lookup: {
+          from: "chapters",
+          localField: "_id",
+          foreignField: "novel",
+          as: "chapters",
+        },
+      },
+      { $addFields: { chapterCount: { $size: "$chapters" } } },
+      // reviews count and avg
+      {
+        $lookup: {
+          from: "reviews",
+          let: { novelId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $and: [{ $eq: ["$novel", "$$novelId"] }, { $eq: ["$parentReview", null] }, { $eq: ["$isDeleted", false] }] } } },
+            { $group: { _id: null, avgRating: { $avg: "$rating" }, count: { $sum: 1 } } },
+          ],
+          as: "reviewStats",
+        },
+      },
+      { $addFields: { averageRating: { $ifNull: [{ $round: [{ $arrayElemAt: ["$reviewStats.avgRating", 0] }, 1] }, 0] }, reviewCount: { $ifNull: [{ $arrayElemAt: ["$reviewStats.count", 0] }, 0] } } },
+      // comments count
+      {
+        $lookup: {
+          from: "comments",
+          let: { novelId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $and: [{ $eq: ["$novel", "$$novelId"] }, { $eq: ["$parentComment", null] }, { $eq: ["$isDeleted", false] }] } } },
+            { $count: "count" },
+          ],
+          as: "commentCount",
+        },
+      },
+      { $addFields: { commentsCount: { $ifNull: [{ $arrayElemAt: ["$commentCount.count", 0] }, 0] } } },
+      // remove heavy arrays
+      { $project: { chapters: 0, reviewStats: 0, commentCount: 0 } },
     ];
+
+    // If chapter filters exist, insert a match on chapterCount after it's computed
+    if (chapterMin !== undefined || chapterMax !== undefined) {
+      const chapterFilter = {};
+      if (chapterMin !== undefined && parseInt(chapterMin) > 0) chapterFilter.$gte = parseInt(chapterMin);
+      if (chapterMax !== undefined) {
+        const cm = parseInt(chapterMax);
+        if (cm < 2000) chapterFilter.$lte = cm;
+      }
+      if (Object.keys(chapterFilter).length) {
+        const idx = novelsPipeline.findIndex((s) => s.$addFields && s.$addFields.chapterCount !== undefined);
+        if (idx !== -1) novelsPipeline.splice(idx + 1, 0, { $match: { chapterCount: chapterFilter } });
+      }
+    }
+
+    // Determine sort stage based on sortBy param
+    const sortBy = req.query.sortBy;
+    let sortStage = { $sort: { score: -1, updatedAt: -1 } };
+    switch (sortBy) {
+      case "latest":
+        sortStage = { $sort: { createdAt: -1, _id: 1 } };
+        break;
+      case "oldest":
+        sortStage = { $sort: { createdAt: 1, _id: 1 } };
+        break;
+      case "mostChapters":
+        sortStage = { $sort: { chapterCount: -1, _id: 1 } };
+        break;
+      case "leastChapters":
+        sortStage = { $sort: { chapterCount: 1, _id: 1 } };
+        break;
+      case "views_desc":
+        sortStage = { $sort: { views: -1, _id: 1 } };
+        break;
+      case "reviews_desc":
+        sortStage = { $sort: { reviewCount: -1, _id: 1 } };
+        break;
+      case "comments_desc":
+        sortStage = { $sort: { commentsCount: -1, _id: 1 } };
+        break;
+      case "completed_recent":
+        sortStage = { $sort: { updatedAt: -1, _id: 1 } };
+        break;
+      case "updated_recent":
+        sortStage = { $sort: { updatedAt: -1, _id: 1 } };
+        break;
+      default:
+        // keep default score sort
+        sortStage = { $sort: { score: -1, updatedAt: -1 } };
+    }
+
+    // push sort, pagination and final projection
+    novelsPipeline.push(sortStage, { $skip: skip }, { $limit: l }, { $project: { _id: 1, title: 1, author: 1, description: 1, genres: 1, coverImageUrl: 1, poster: { username: 1 }, score: 1, status: 1, views: 1, commentsCount: 1, averageRating: 1, chapterCount: 1 } });
 
     const novels = await Novel.aggregate(novelsPipeline);
     const totalPages = Math.ceil(total / l);

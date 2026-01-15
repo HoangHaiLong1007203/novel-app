@@ -14,6 +14,7 @@ export interface User {
   email?: string;
   avatarUrl?: string;
   coins: number;
+   role?: "user" | "admin";
   providers: Provider[];
   createdAt?: string;
   updatedAt?: string;

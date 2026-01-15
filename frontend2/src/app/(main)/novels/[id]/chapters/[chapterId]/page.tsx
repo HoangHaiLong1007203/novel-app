@@ -292,6 +292,42 @@ export default function ChapterPage() {
         onNext={() => nextId && router.push(`/novels/${id}/chapters/${nextId}`)}
         readerSettings={readerSettings}
       />
+
+      {/* Floating scroll buttons: go to top / go to bottom */}
+      <div className="fixed right-6 bottom-6 z-50 flex flex-col gap-3">
+        <button
+          aria-label="Lên đầu trang"
+          title="Lên đầu trang"
+          onClick={() => {
+            if (typeof window !== "undefined") {
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }
+          }}
+          className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
+          style={{ background: "rgba(0,0,0,0.5)", color: "white" }}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6">
+            <path fillRule="evenodd" d="M3.293 9.293a1 1 0 011.414 0L10 14.586l5.293-5.293a1 1 0 111.414 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414z" clipRule="evenodd" transform="rotate(180 10 10)" />
+          </svg>
+        </button>
+
+        <button
+          aria-label="Xuống cuối trang"
+          title="Xuống cuối trang"
+          onClick={() => {
+            if (typeof window !== "undefined") {
+              const scrollTarget = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+              window.scrollTo({ top: scrollTarget, behavior: "smooth" });
+            }
+          }}
+          className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
+          style={{ background: "rgba(0,0,0,0.5)", color: "white" }}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6">
+            <path fillRule="evenodd" d="M3.293 9.293a1 1 0 011.414 0L10 14.586l5.293-5.293a1 1 0 111.414 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+        </button>
+      </div>
     </div>
   );
 }

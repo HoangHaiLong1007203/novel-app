@@ -126,3 +126,106 @@ export async function purchaseLockedChapter(chapterId: string) {
   const res = await API.post(`/api/chapters/${chapterId}/purchase`);
   return res.data;
 }
+
+export type PaymentProvider = "stripe" | "vnpay";
+
+export async function createTopupSession(payload: {
+  coins: number;
+  provider: PaymentProvider;
+  returnUrl?: string;
+}) {
+  const res = await API.post("/api/payments/create", payload);
+  return res.data as {
+    transactionId: string;
+    redirectUrl: string;
+    provider: PaymentProvider;
+    amountVnd: number;
+    coins: number;
+  };
+}
+
+export async function confirmTopup(payload: {
+  provider: PaymentProvider;
+  transactionId: string;
+  sessionId?: string;
+  vnpParams?: Record<string, string>;
+}) {
+  const res = await API.post("/api/payments/confirm", payload);
+  return res.data as {
+    status: "success" | "failed" | "canceled" | "pending";
+    provider: PaymentProvider;
+    coins?: number | null;
+    transaction?: unknown;
+    message?: string;
+    responseCode?: string;
+  };
+}
+
+export async function fetchAdminTransactions(limit = 50) {
+  const res = await API.get("/api/payments/transactions", { params: { limit } });
+  return res.data as {
+    summary: { totalVnd: number; totalCoins: number; count: number };
+    transactions: Array<{
+      _id: string;
+      user: { username: string; email?: string; coins?: number };
+      amount: number;
+      amountVnd?: number;
+      provider: PaymentProvider;
+      status: string;
+      createdAt: string;
+    }>;
+  };
+}
+
+export async function fetchUserTransactions(page = 1, limit = 20, type?: "topup" | "purchase") {
+  const params: Record<string, unknown> = { page, limit };
+  if (type) params.type = type;
+  const res = await API.get("/api/payments/me", { params });
+  return res.data as {
+    transactions: Array<{
+      _id: string;
+      type: "topup" | "purchase";
+      provider?: PaymentProvider | null;
+      status: string;
+      amount: number;
+      amountVnd?: number;
+      orderCode?: string;
+      createdAt: string;
+      novel?: { title?: string } | null;
+      chapter?: { title?: string; chapterNumber?: number } | null;
+    }>;
+    pagination: { currentPage: number; totalPages: number; total: number; hasNextPage: boolean; hasPrevPage: boolean };
+  };
+}
+
+export async function fetchNotifications(page = 1, limit = 20, isRead?: boolean) {
+  const params: Record<string, unknown> = { page, limit };
+  if (isRead !== undefined) params.isRead = String(isRead);
+  const res = await API.get("/api/notifications", { params });
+  type NotificationDto = {
+    _id: string;
+    title?: string;
+    message?: string;
+    type?: string;
+    isRead?: boolean;
+    createdAt?: string;
+    relatedNovel?: { title?: string } | null;
+    relatedChapter?: { title?: string; chapterNumber?: number } | null;
+  };
+
+  return res.data as {
+    notifications: NotificationDto[];
+    pagination: { currentPage: number; totalPages: number; totalNotifications: number; hasNextPage: boolean; hasPrevPage: boolean };
+    unreadCount: number;
+  };
+}
+
+export async function markNotificationRead(notificationId: string) {
+  const res = await API.put(`/api/notifications/${notificationId}/read`);
+  return res.data;
+}
+
+export async function markAllNotificationsRead() {
+  const res = await API.put(`/api/notifications/mark-all-read`);
+  return res.data;
+}

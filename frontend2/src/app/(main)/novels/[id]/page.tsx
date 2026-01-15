@@ -29,6 +29,7 @@ interface Novel {
   status?: string;
   coverImageUrl?: string;
   viewCount?: number;
+  views?: number;
   poster?: { _id?: string; username?: string };
 }
 
@@ -338,7 +339,7 @@ export default function NovelDetailPage() {
               <NovelStats
                 chapterCount={chapters.length}
                 status={status}
-                viewCount={novel?.viewCount || 0}
+                viewCount={novel?.views || 0}
               />
               <p className="text-sm leading-relaxed whitespace-pre-line" style={description ? { textAlign: 'justify' } : {}}>{description}</p>
               <div className="mt-6">
@@ -361,7 +362,7 @@ export default function NovelDetailPage() {
                   <NovelCarousel
                     title={`Cùng tác giả: ${author}`}
                     novels={authorNovels.slice(0, 5)}
-                    moreHref={`/search?author=${encodeURIComponent(author)}`}
+                    moreHref={`/novels/by/author/${encodeURIComponent(author)}`}
                     ItemComponent={NovelTile}
                     direction="horizontal"
                   />
@@ -376,7 +377,7 @@ export default function NovelDetailPage() {
                   <NovelCarousel
                     title={`Cùng người đăng: ${novel?.poster?.username || ""}`}
                     novels={posterNovels.slice(0, 5)}
-                    moreHref={`/user/${novel?.poster?._id}`}
+                    moreHref={`/novels/by/poster/${novel?.poster?._id}`}
                     ItemComponent={NovelTile}
                     direction="horizontal"
                   />

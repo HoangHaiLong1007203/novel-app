@@ -34,7 +34,7 @@ export default function ReadingCard({ progress, onRemoved }: Props) {
   const novel = progress.novel! as NovelSummary;
   const [deleting, setDeleting] = useState(false);
   const [totalChapters, setTotalChapters] = useState<number | null>(null);
-  const [chapters, setChapters] = useState<Array<{ _id: string }>>([]);
+  
   const [lastReadChapterId, setLastReadChapterId] = useState<string | null>(null);
   const router = useRouter();
 
@@ -64,8 +64,8 @@ export default function ReadingCard({ progress, onRemoved }: Props) {
         const res = await API.get(`/api/novels/${novel._id}/chapters?sort=asc`);
         if (!mounted) return;
         const fetchedChapters = res.data?.chapters || [];
-        setChapters(Array.isArray(fetchedChapters) ? fetchedChapters : []);
-        setTotalChapters(Array.isArray(fetchedChapters) ? fetchedChapters.length : 0);
+        const normalized: Array<{ _id?: string; id?: string }> = Array.isArray(fetchedChapters) ? fetchedChapters : [];
+        setTotalChapters(normalized.length);
 
         // Fetch detailed reading progress for this novel to determine last-read chapter
         try {
@@ -75,16 +75,17 @@ export default function ReadingCard({ progress, onRemoved }: Props) {
           // Prefer last reading session chapter if available
           const sessionLast = rp?.readingSessions?.length ? rp.readingSessions[rp.readingSessions.length - 1]?.chapter : null;
           const readChLast = rp?.readChapters?.length ? (rp.readChapters[rp.readChapters.length - 1]._id || rp.readChapters[rp.readChapters.length - 1]) : null;
-          const lastId = sessionLast?.toString() || readChLast?.toString() || (progress.readChapters?.length ? (progress.readChapters[progress.readChapters.length - 1] as any)?.toString?.() : null);
+          const lastFromProgress = progress.readChapters?.length ? String(progress.readChapters[progress.readChapters.length - 1]) : null;
+          const lastId = sessionLast?.toString() || readChLast?.toString() || lastFromProgress;
           setLastReadChapterId(lastId || null);
           if (lastId) {
-            const idx = (Array.isArray(fetchedChapters) ? fetchedChapters.findIndex((c: any) => (c._id || c.id) === lastId) : -1);
+            const idx = normalized.findIndex((c) => (c._id || c.id) === lastId);
             if (idx >= 0) setDisplayIndex(idx + 1);
             else setDisplayIndex(null);
           } else {
             setDisplayIndex(null);
           }
-        } catch (e) {
+        } catch {
           // ignore, no auth or no progress
         }
       } catch {
@@ -94,7 +95,7 @@ export default function ReadingCard({ progress, onRemoved }: Props) {
     };
     fetchCount();
     return () => { mounted = false };
-  }, [novel._id]);
+  }, [novel._id, progress.readChapters]);
 
   return (
     <Sheet>

@@ -2,6 +2,8 @@ import bcrypt from "bcryptjs";
 import User from "../models/User.js";
 import { generateAccessToken, generateRefreshToken, verifyToken } from "../utils/jwt.js";
 import AppError from "../middlewares/errorHandler.js"; // import AppError
+import Novel from "../models/Novel.js";
+import { normalizeText } from "../utils/normalize.js";
 
 // Register
 export const register = async ({ username, email, password }) => {
@@ -129,6 +131,17 @@ export const changeUsername = async (userId, newUsername) => {
   const updatedUser = await User.findByIdAndUpdate(userId, { username: trimmedUsername }, { new: true }).select("-password");
   if (!updatedUser) {
     throw new AppError("User không tồn tại", 404);
+  }
+
+  // Also update any Novel documents that reference this user as the author
+  try {
+    await Novel.updateMany(
+      { authorUser: userId, type: "sáng tác" },
+      { $set: { author: trimmedUsername, authorNormalized: normalizeText(trimmedUsername) } }
+    );
+  } catch (err) {
+    // Log and continue; username change itself succeeded. Do not block the user.
+    console.error("Failed to update novels' author fields after username change:", err);
   }
   return updatedUser;
 };

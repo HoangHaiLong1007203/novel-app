@@ -27,6 +27,12 @@ const userSchema = new mongoose.Schema(
     // Mảng providers, mỗi provider lưu name + providerId (nếu có)
     providers: { type: [providerSchema], default: [{ name: "local" }] },
 
+    role: {
+      type: String,
+      enum: ["user", "admin"],
+      default: "user",
+    },
+
     // Số xu để mua chương
     coins: { type: Number, default: 0 },
 

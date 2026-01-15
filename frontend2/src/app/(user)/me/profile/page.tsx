@@ -16,6 +16,9 @@ import {
   type ProfileSidebarItemConfig,
 } from "@/components/profile/ProfileSidebar";
 import { ProfileTabsBar } from "@/components/profile/ProfileTabsBar";
+import { NotificationsList } from "@/components/profile/NotificationsList";
+import { TransactionsList } from "@/components/profile/TransactionsList";
+import { UnlockHistoryList } from "@/components/profile/UnlockHistoryList";
 
 const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]{6,128}$/;
 const MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024;
@@ -32,25 +35,25 @@ const SIDEBAR_ITEMS: ProfileSidebarItemConfig[] = [
     key: "notifications",
     label: "Thông báo",
     description: "Theo dõi cập nhật",
-    href: "#",
+    href: "/me/profile/notifications",
     icon: BellRing,
-    disabled: true,
+    disabled: false,
   },
   {
     key: "topup-history",
     label: "Lịch sử nạp",
     description: "Các giao dịch gần đây",
-    href: "#",
+    href: "/me/profile/topup-history",
     icon: History,
-    disabled: true,
+    disabled: false,
   },
   {
     key: "unlock-history",
     label: "Lịch sử mở khóa",
     description: "Chương đã mua",
-    href: "#",
+    href: "/me/profile/unlock-history",
     icon: Unlock,
-    disabled: true,
+    disabled: false,
   },
 ];
 
@@ -101,8 +104,22 @@ export default function ProfilePage() {
   const isUsernameDirty = user ? user.username !== username.trim() : false;
   const activeNavKey = useMemo(() => {
     if (!pathname) return "profile";
-    const matched = SIDEBAR_ITEMS.find((item) => item.href && pathname.startsWith(item.href));
-    return matched?.key ?? "profile";
+    // Prefer the most specific (longest) matching href so /me/profile/notifications
+    // doesn't incorrectly match the parent /me/profile entry.
+    let best: ProfileSidebarItemConfig | undefined;
+    for (const item of SIDEBAR_ITEMS) {
+      if (!item.href) continue;
+      if (pathname === item.href) {
+        best = item;
+        break;
+      }
+      if (pathname.startsWith(item.href)) {
+        if (!best || (item.href.length > (best.href?.length ?? 0))) {
+          best = item;
+        }
+      }
+    }
+    return best?.key ?? "profile";
   }, [pathname]);
 
   if (loading) {
@@ -227,7 +244,7 @@ export default function ProfilePage() {
   };
 
   const handleTopUpClick = () => {
-    toast("Tính năng nạp xu đang được phát triển");
+    router.push("/me/topup");
   };
 
   const handleHistoryClick = () => {
@@ -249,173 +266,138 @@ export default function ProfilePage() {
             <ProfileSidebar items={SIDEBAR_ITEMS} activeKey={activeNavKey} />
           </aside>
           <div className="flex-1 space-y-6">
-          <ProfileSectionCard
-            title="Hồ sơ cá nhân"
-            description="Cập nhật avatar và tên hiển thị của bạn"
-          >
-            <div className="space-y-6">
-              <ProfileAvatarUploader
-                avatarUrl={user.avatarUrl}
-                previewUrl={avatarPreview}
-                username={user.username}
-                isUploading={isUploadingAvatar}
-                onSelectFile={handleAvatarSelect}
-              />
-              <Separator />
-              <form className="space-y-5" onSubmit={handleProfileSubmit}>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="username">Username</Label>
-                    <Input
-                      id="username"
-                      name="username"
-                      value={username}
-                      onChange={(event) => setUsername(event.target.value)}
-                      placeholder="Nhập username mới"
-                      autoComplete="nickname"
-                    />
-                    {profileError ? (
-                      <p className="text-sm text-destructive">{profileError}</p>
-                    ) : null}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      value={email || "Chưa cập nhật"}
-                      disabled
-                      readOnly
-                    />
-                  </div>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Ngày tham gia</Label>
-                    <Input value={joinedAt} disabled readOnly />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Liên kết tài khoản</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {providerBadges.length ? (
-                        providerBadges.map((provider) => (
-                          <Badge
-                            key={`${provider.name}-${provider.providerId ?? "default"}`}
-                            variant="secondary"
-                          >
-                            {providerLabels[provider.name] ?? provider.name}
-                          </Badge>
-                        ))
-                      ) : (
-                        <Badge variant="outline">Chưa có</Badge>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex flex-wrap justify-end gap-3">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setUsername(user.username)}
-                    disabled={isSavingProfile || !isUsernameDirty}
-                  >
-                    Hủy
-                  </Button>
-                  <Button type="submit" disabled={isSavingProfile || !isUsernameDirty}>
-                    {isSavingProfile ? (
-                      <Loader2 className="mr-2 size-4 animate-spin" />
-                    ) : null}
-                    Lưu thay đổi
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </ProfileSectionCard>
-
-          <ProfileSectionCard
-            title="Bảo mật & mật khẩu"
-            description="Thiết lập mật khẩu mạnh để bảo vệ tài khoản"
-          >
-            <form className="space-y-5" onSubmit={handlePasswordSubmit}>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="newPassword">Mật khẩu mới</Label>
-                  <Input
-                    id="newPassword"
-                    name="newPassword"
-                    type="password"
-                    value={passwordForm.newPassword}
-                    onChange={handlePasswordChange}
-                    autoComplete="new-password"
-                    placeholder="Tối thiểu 6 ký tự"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Nhập lại mật khẩu</Label>
-                  <Input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type="password"
-                    value={passwordForm.confirmPassword}
-                    onChange={handlePasswordChange}
-                    autoComplete="new-password"
-                    placeholder="Nhập lại để xác nhận"
-                  />
-                </div>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Mật khẩu cần 6-128 ký tự, bao gồm ít nhất một chữ cái và một chữ số, không khoảng trắng.
-              </p>
-              {passwordError ? (
-                <p className="text-sm text-destructive">{passwordError}</p>
-              ) : null}
-              <div className="flex justify-end">
-                <Button
-                  type="submit"
-                  disabled={
-                    isUpdatingPassword ||
-                    !passwordForm.newPassword.length ||
-                    !passwordForm.confirmPassword.length
-                  }
-                  className="gap-2"
+            {activeNavKey === "profile" ? (
+              <>
+                <ProfileSectionCard
+                  title="Hồ sơ cá nhân"
+                  description="Cập nhật avatar và tên hiển thị của bạn"
                 >
-                  <ShieldCheck className="size-4" />
-                  {isUpdatingPassword ? "Đang lưu..." : "Đổi mật khẩu"}
-                </Button>
-              </div>
-            </form>
-          </ProfileSectionCard>
+                  <div className="space-y-6">
+                    <ProfileAvatarUploader
+                      avatarUrl={user.avatarUrl}
+                      previewUrl={avatarPreview}
+                      username={user.username}
+                      isUploading={isUploadingAvatar}
+                      onSelectFile={handleAvatarSelect}
+                    />
+                    <Separator />
+                    <form className="space-y-5" onSubmit={handleProfileSubmit}>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="username">Username</Label>
+                          <Input
+                            id="username"
+                            name="username"
+                            value={username}
+                            onChange={(event) => setUsername(event.target.value)}
+                            placeholder="Nhập username mới"
+                            autoComplete="nickname"
+                          />
+                          {profileError ? (
+                            <p className="text-sm text-destructive">{profileError}</p>
+                          ) : null}
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="email">Email</Label>
+                          <Input id="email" value={email || "Chưa cập nhật"} disabled readOnly />
+                        </div>
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Ngày tham gia</Label>
+                          <Input value={joinedAt} disabled readOnly />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Liên kết tài khoản</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {providerBadges.length ? (
+                              providerBadges.map((provider) => (
+                                <Badge key={`${provider.name}-${provider.providerId ?? "default"}`} variant="secondary">
+                                  {providerLabels[provider.name] ?? provider.name}
+                                </Badge>
+                              ))
+                            ) : (
+                              <Badge variant="outline">Chưa có</Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap justify-end gap-3">
+                        <Button type="button" variant="ghost" onClick={() => setUsername(user.username)} disabled={isSavingProfile || !isUsernameDirty}>
+                          Hủy
+                        </Button>
+                        <Button type="submit" disabled={isSavingProfile || !isUsernameDirty}>
+                          {isSavingProfile ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                          Lưu thay đổi
+                        </Button>
+                      </div>
+                    </form>
+                  </div>
+                </ProfileSectionCard>
 
-          <ProfileSectionCard
-            title="Ví xu"
-            description="Theo dõi số dư và nạp thêm khi cần"
-            actionSlot={
-              <Button type="button" variant="ghost" size="sm" onClick={handleHistoryClick}>
-                Xem lịch sử
-              </Button>
-            }
-          >
-            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Số dư hiện có</p>
-                <div className="mt-1 flex items-baseline gap-2">
-                  <Coins className="size-5 text-primary" />
-                  <span className="text-3xl font-semibold">
-                    {(user.coins ?? 0).toLocaleString("vi-VN")}
-                  </span>
-                  <span className="text-sm text-muted-foreground">xu</span>
-                </div>
-              </div>
-              <Button
-                type="button"
-                size="lg"
-                className="gap-2"
-                onClick={handleTopUpClick}
-              >
-                <CreditCard className="size-5" />
-                Nạp xu
-              </Button>
-            </div>
-          </ProfileSectionCard>
+                <ProfileSectionCard title="Bảo mật & mật khẩu" description="Thiết lập mật khẩu mạnh để bảo vệ tài khoản">
+                  <form className="space-y-5" onSubmit={handlePasswordSubmit}>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="newPassword">Mật khẩu mới</Label>
+                        <Input
+                          id="newPassword"
+                          name="newPassword"
+                          type="password"
+                          value={passwordForm.newPassword}
+                          onChange={handlePasswordChange}
+                          autoComplete="new-password"
+                          placeholder="Tối thiểu 6 ký tự"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="confirmPassword">Nhập lại mật khẩu</Label>
+                        <Input
+                          id="confirmPassword"
+                          name="confirmPassword"
+                          type="password"
+                          value={passwordForm.confirmPassword}
+                          onChange={handlePasswordChange}
+                          autoComplete="new-password"
+                          placeholder="Nhập lại để xác nhận"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Mật khẩu cần 6-128 ký tự, bao gồm ít nhất một chữ cái và một chữ số, không khoảng trắng.</p>
+                    {passwordError ? <p className="text-sm text-destructive">{passwordError}</p> : null}
+                    <div className="flex justify-end">
+                      <Button type="submit" disabled={isUpdatingPassword || !passwordForm.newPassword.length || !passwordForm.confirmPassword.length} className="gap-2">
+                        <ShieldCheck className="size-4" />
+                        {isUpdatingPassword ? "Đang lưu..." : "Đổi mật khẩu"}
+                      </Button>
+                    </div>
+                  </form>
+                </ProfileSectionCard>
+
+                <ProfileSectionCard title="Ví xu" description="Theo dõi số dư và nạp thêm khi cần" actionSlot={<Button type="button" variant="ghost" size="sm" onClick={handleHistoryClick}>Xem lịch sử</Button>}>
+                  <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Số dư hiện có</p>
+                      <div className="mt-1 flex items-baseline gap-2">
+                        <Coins className="size-5 text-primary" />
+                        <span className="text-3xl font-semibold">{(user.coins ?? 0).toLocaleString("vi-VN")}</span>
+                        <span className="text-sm text-muted-foreground">xu</span>
+                      </div>
+                    </div>
+                    <Button type="button" size="lg" className="gap-2" onClick={handleTopUpClick}>
+                      <CreditCard className="size-5" />
+                      Nạp xu
+                    </Button>
+                  </div>
+                </ProfileSectionCard>
+              </>
+            ) : null}
+
+            {activeNavKey === "notifications" ? <NotificationsList /> : null}
+
+            {activeNavKey === "topup-history" ? <TransactionsList type="topup" /> : null}
+
+            {activeNavKey === "unlock-history" ? <UnlockHistoryList /> : null}
           </div>
         </div>
       </div>

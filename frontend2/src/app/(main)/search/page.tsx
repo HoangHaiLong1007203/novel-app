@@ -25,12 +25,37 @@ export default function SearchPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const qParam = searchParams.get("q") || "";
+  const searchParamsString = searchParams.toString();
 
   const [query, setQuery] = useState(qParam);
   useEffect(() => {
-    setQuery(qParam);
+    // Re-read query + all params when search params change (including back/forward)
+    const sp = searchParams;
+    const q = sp.get("q") || "";
+    setQuery(q);
     setPage(1);
-  }, [qParam]);
+
+    const initFilters: Filters = {
+      categories: [],
+      genres: [],
+      status: [],
+      chapterRange: [0, 2100],
+      sortBy: null,
+    };
+    const types = sp.get("type");
+    const gens = sp.get("genres");
+    const stats = sp.get("status");
+    const cmn = sp.get("chapterMin");
+    const cmx = sp.get("chapterMax");
+    const sb = sp.get("sortBy");
+    if (types) initFilters.categories = types.split(",");
+    if (gens) initFilters.genres = gens.split(",");
+    if (stats) initFilters.status = stats.split(",");
+    if (cmn) initFilters.chapterRange[0] = Math.max(0, parseInt(cmn));
+    if (cmx) initFilters.chapterRange[1] = Math.min(2100, parseInt(cmx));
+    if (sb) initFilters.sortBy = sb;
+    setFilters(initFilters);
+  }, [searchParamsString]);
   const [novels, setNovels] = useState<Novel[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -55,38 +80,25 @@ export default function SearchPage() {
 
   const fetchResults = useCallback(async () => {
     try {
-      // If query present, use search endpoint which now supports pagination
-      if (query.trim()) {
-        const res = await API.get(`/api/novels/search?q=${encodeURIComponent(query)}&page=${page}&limit=${viewMode === "card" ? 15 : 10}`);
-        const data = res.data;
-        setNovels(data?.novels || []);
-        setTotal(data?.pagination?.total || data?.novels?.length || 0);
-        setTotalPages(data?.pagination?.totalPages || 1);
-      } else {
-        // No free-text query -> use regular listing with filters
-        const params = new URLSearchParams();
-        params.append("page", String(page));
-        params.append("limit", viewMode === "card" ? "20" : "10");
-        if (filters.categories?.length) params.append("type", filters.categories.join(","));
-        if (filters.genres?.length) params.append("genres", filters.genres.join(","));
-        if (filters.status?.length) params.append("status", filters.status.join(","));
-        if (filters.chapterRange?.[0] > 0) params.append("chapterMin", String(filters.chapterRange[0]));
-        if (filters.chapterRange?.[1] < 2100) params.append("chapterMax", String(filters.chapterRange[1]));
-        if (filters.sortBy) params.append("sortBy", filters.sortBy);
+      // Build params from current URL search params so URL is single source of truth
+      const params = new URLSearchParams(searchParams.toString());
+      // Ensure page & limit are set according to current state
+      params.set("page", String(page));
+      params.set("limit", viewMode === "card" ? (query.trim() ? "15" : "20") : "10");
 
-        const res = await API.get(`/api/novels?${params.toString()}`);
-        const data = res.data;
-        setNovels(data?.novels || []);
-        setTotal(data?.pagination?.total || data?.novels?.length || 0);
-        setTotalPages(data?.pagination?.totalPages || 1);
-      }
+      const endpoint = query.trim() ? "/api/novels/search" : "/api/novels";
+      const res = await API.get(`${endpoint}?${params.toString()}`);
+      const data = res.data;
+      setNovels(data?.novels || []);
+      setTotal(data?.pagination?.total || data?.novels?.length || 0);
+      setTotalPages(data?.pagination?.totalPages || 1);
     } catch (err) {
       console.error("Search fetch failed:", err);
       setNovels([]);
       setTotal(0);
       setTotalPages(1);
     }
-  }, [query, page, filters, viewMode]);
+  }, [searchParamsString, page, viewMode, query]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -104,6 +116,19 @@ export default function SearchPage() {
   const handleFilterChange = (newFilters: Filters) => {
     setFilters(newFilters);
     setPage(1);
+    // Persist filters into URL so navigating away and back preserves them
+    const params = new URLSearchParams();
+    if (query.trim()) params.append("q", query);
+    if (newFilters.categories?.length) params.append("type", newFilters.categories.join(","));
+    if (newFilters.genres?.length) params.append("genres", newFilters.genres.join(","));
+    if (newFilters.status?.length) params.append("status", newFilters.status.join(","));
+    if (newFilters.chapterRange?.[0] > 0) params.append("chapterMin", String(newFilters.chapterRange[0]));
+    if (newFilters.chapterRange?.[1] < 2100) params.append("chapterMax", String(newFilters.chapterRange[1]));
+    if (newFilters.sortBy != null) params.append("sortBy", newFilters.sortBy as string);
+    // keep page in URL (reset to 1)
+    params.append("page", "1");
+    // use replace to update current history entry (so back/forward behaves naturally)
+    router.replace(`/search?${params.toString()}`);
   };
 
   
@@ -112,7 +137,7 @@ export default function SearchPage() {
     <div className={`max-w-7xl mx-auto p-4 gap-6 ${isLargeScreen ? 'flex flex-row' : 'flex flex-col'}`}>
       {/* LEFT: Filter */}
       <div className={`w-full ${isLargeScreen ? 'lg:w-[22rem]' : ''} shrink-0 ${isLargeScreen || showFilter ? '' : 'hidden'}`}>
-        <NovelFilter layout="vertical" onFilterChange={handleFilterChange} />
+        <NovelFilter layout="vertical" onFilterChange={handleFilterChange} initialFilters={filters} />
       </div>
 
       {/* RIGHT: Results */}

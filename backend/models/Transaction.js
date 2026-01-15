@@ -16,6 +16,18 @@ const transactionSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    amountVnd: { type: Number },
+    currency: { type: String, default: "VND" },
+    provider: {
+      type: String,
+      enum: ["stripe", "vnpay", "system", null],
+      default: null,
+    },
+    providerSessionId: { type: String },
+    providerRef: { type: String },
+    orderCode: { type: String },
+    description: { type: String },
+    metadata: { type: mongoose.Schema.Types.Mixed },
     chapter: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Chapter",
@@ -32,12 +44,17 @@ const transactionSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["success", "failed", "pending"],
-      default: "success",
+      enum: ["success", "failed", "pending", "canceled"],
+      default: "pending",
     },
+    statusReason: { type: String },
   },
   { timestamps: true }
 );
+
+transactionSchema.index({ user: 1, createdAt: -1 });
+transactionSchema.index({ provider: 1, providerSessionId: 1 });
+transactionSchema.index({ type: 1, status: 1 });
 
 const Transaction = mongoose.model("Transaction", transactionSchema);
 export default Transaction;

@@ -7,6 +7,7 @@ import {
   purchaseLockedChapter,
   ReaderSettingsPayload,
 } from "@/lib/api";
+import { useAuth } from "@/hook/useAuth";
 import { toast } from "@/lib/toast";
 import { toastApiError } from "@/lib/errors";
 
@@ -51,6 +52,7 @@ const ChapterReader = ({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
+  const { user, setUser } = useAuth();
 
   const appliedSettings = readerSettings || fallbackStyles;
   const readerStyle = useMemo(() => {
@@ -145,7 +147,7 @@ const ChapterReader = ({
     } finally {
       setLoading(false);
     }
-  }, [chapterId, fetchHtmlFromUrl]);
+  }, [chapterId, fetchHtmlFromUrl, onReadable]);
 
   useEffect(() => {
     hydrateChapter();
@@ -187,6 +189,9 @@ const ChapterReader = ({
       const result = await purchaseLockedChapter(chapterId);
       const ok = result.message || "Mua chương thành công";
       toast.success(ok, { duration: 1000 });
+      if (typeof result.coins === "number") {
+        setUser?.(user ? { ...user, coins: result.coins } : user);
+      }
       await unlockChapter();
       await hydrateChapter();
     } catch (err: unknown) {
