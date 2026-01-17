@@ -21,8 +21,19 @@ export const API = axios.create({
       // When opening built files via file:// (e.g. double-clicking .html),
       // window.location.protocol === 'file:' and hostname may be empty.
       // In that case, fall back to localhost:5000 so API calls still work locally.
-      const proto = window.location.protocol === "file:" ? "http:" : window.location.protocol;
-      const host = window.location.hostname || "localhost";
+      let proto: string;
+      const hostname = window.location.hostname || "localhost";
+      if (window.location.protocol === "file:") {
+        // Local file usage: use http to talk to local backend
+        proto = "http:";
+      } else if (hostname === "localhost" || hostname === "127.0.0.1") {
+        // Allow http for explicit local development hosts
+        proto = "http:";
+      } else {
+        // For non-local hosts, enforce https regardless of page protocol
+        proto = "https:";
+      }
+      const host = hostname;
       return `${proto}//${host}:5000`;
     }
     return "http://localhost:5000";

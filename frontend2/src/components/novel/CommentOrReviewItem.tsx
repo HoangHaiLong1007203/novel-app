@@ -1,6 +1,6 @@
 "use client";
 
-// Removed unused Button import
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { FaFlag, FaTrash, FaStar, FaRegHeart, FaHeart, FaComment } from "react-icons/fa";
