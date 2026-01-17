@@ -69,35 +69,14 @@ export default function UploadPage() {
               {userNovels.map((novel) => (
                 <div
                   key={novel._id}
-                  className="group relative shrink-0 w-[150px] sm:w-[180px] transition-transform duration-300 hover:scale-[1.02]"
+                  className="shrink-0 w-[150px] sm:w-[180px] transition-transform duration-300 hover:scale-[1.02]"
                 >
-                  {/* --- NovelCard gốc --- */}
-                  <div className="relative overflow-hidden rounded-md">
-                    <NovelCard novel={novel} />
-
-                    {/* hiệu ứng làm mờ ảnh khi hover (phía dưới overlay nút) */}
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 backdrop-blur-[2px] z-0" />
-
-                    {/* overlay chứa nút */}
-                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                      <Button
-                        variant="secondary"
-                        className="bg-white text-black font-medium py-2 px-4 rounded-md hover:bg-primary hover:text-white active:scale-95 transition-transform duration-150"
-                        onClick={() => router.push(`/novels/${novel._id}`)}
-                      >
-                        Đọc
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        className="bg-white text-black font-medium py-2 px-4 rounded-md hover:bg-primary hover:text-white active:scale-95 transition-transform duration-150 delay-75"
-                        onClick={() =>
-                          router.push(`/novels/update/${novel._id}`)
-                        }
-                      >
-                        Sửa
-                      </Button>
-                    </div>
-                  </div>
+                  <NovelCard
+                    novel={novel}
+                    mode="edit"
+                    onRead={(id) => router.push(`/novels/${id}`)}
+                    onEdit={(id) => router.push(`/novels/update/${id}`)}
+                  />
                 </div>
               ))}
             </div>

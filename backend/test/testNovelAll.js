@@ -2,8 +2,9 @@ import fetch from 'node-fetch';
 import FormData from 'form-data';
 import fs from 'fs';
 
-const BASE_URL = 'http://localhost:5000/api';
-const AUTH_BASE_URL = 'http://localhost:5000/api/auth';
+const BASE = process.env.BASE_URL || 'https://localhost:5000';
+const BASE_URL = `${BASE}/api`;
+const AUTH_BASE_URL = `${BASE}/api/auth`;
 
 // Test data
 let accessToken = '';

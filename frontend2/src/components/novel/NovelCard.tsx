@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import React from "react";
-import { Card, CardContent, CardFooter, Badge } from "@/components/ui";
+import { Card, CardContent, CardFooter, Badge, Button } from "@/components/ui";
 import { MessageCircle, Star, Eye, User, UploadCloud } from "lucide-react";
 
 interface NovelCardProps {
@@ -20,11 +20,22 @@ interface NovelCardProps {
     commentsCount?: number;
     averageRating?: number;
   };
+  mode?: "read" | "edit";
+  onRead?: (novelId: string) => void;
+  onEdit?: (novelId: string) => void;
 }
 
-export default function NovelCard({ novel }: NovelCardProps) {
+export default function NovelCard({ novel, mode = "read", onRead, onEdit }: NovelCardProps) {
   const router = useRouter();
-  const handleCardClick = () => router.push(`/novels/${novel._id}`);
+  const goToRead = () => {
+    if (onRead) return onRead(novel._id);
+    router.push(`/novels/${novel._id}`);
+  };
+  const goToEdit = () => {
+    if (onEdit) return onEdit(novel._id);
+    router.push(`/novels/update/${novel._id}`);
+  };
+  const handleCardClick = () => goToRead();
   const handleAuthorClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     router.push(`/author/${encodeURIComponent(
@@ -52,7 +63,7 @@ export default function NovelCard({ novel }: NovelCardProps) {
 
   return (
     <Card
-      className="overflow-hidden group hover:shadow-md transition-shadow cursor-pointer"
+      className="relative overflow-hidden group hover:shadow-md transition-shadow cursor-pointer"
       onClick={handleCardClick}
       tabIndex={0}
       role="button"
@@ -124,6 +135,34 @@ export default function NovelCard({ novel }: NovelCardProps) {
           {novel.commentsCount ?? 0}
         </div>
       </CardFooter>
+
+      {mode === "edit" && (
+        <>
+          <div className="pointer-events-none absolute inset-0 bg-black/40 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
+            <Button
+              variant="secondary"
+              className="bg-white text-black hover:bg-primary hover:text-white"
+              onClick={(e) => {
+                e.stopPropagation();
+                goToRead();
+              }}
+            >
+              Đọc
+            </Button>
+            <Button
+              variant="secondary"
+              className="bg-white text-black hover:bg-primary hover:text-white"
+              onClick={(e) => {
+                e.stopPropagation();
+                goToEdit();
+              }}
+            >
+              Sửa
+            </Button>
+          </div>
+        </>
+      )}
     </Card>
   );
 }

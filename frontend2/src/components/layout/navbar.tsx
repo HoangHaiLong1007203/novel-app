@@ -130,6 +130,13 @@ export default function Navbar() {
                       <Icon name="plus" className="mr-2" /> Đăng truyện
                     </Link>
                   </DropdownMenuItem>
+                  {user?.role === "admin" && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin/dashboard">
+                        <Icon name="settings" className="mr-2" /> Admin Dashboard
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem
                     onClick={() => {
                       setUser(null);

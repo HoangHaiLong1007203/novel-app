@@ -83,8 +83,9 @@ export default function UpdateNovelPage() {
   useEffect(() => {
     if (loading || authLoading) return;
     if (novel && user) {
-      const posterId = (novel.poster && novel.poster._id) || null;
-      if (posterId && posterId !== user._id) {
+      const posterId = novel.poster?._id || null;
+      const isAdmin = user.role === "admin";
+      if (posterId && posterId !== user._id && !isAdmin) {
         // redirect back to novel page shortly
         setTimeout(() => router.replace(`/novels/${id}`), 1200);
       }

@@ -10,9 +10,10 @@ import ReadingProgress from "../models/ReadingProgress.js";
 
 dotenv.config();
 
-const BASE_URL = "http://localhost:5000/api";
-const AUTH_BASE_URL = "http://localhost:5000/api/auth";
-const REVIEW_BASE_URL = "http://localhost:5000/api/reviews";
+const BASE = process.env.BASE_URL || 'https://localhost:5000';
+const BASE_URL = `${BASE}/api`;
+const AUTH_BASE_URL = `${BASE}/api/auth`;
+const REVIEW_BASE_URL = `${BASE}/api/reviews`;
 
 // Test data
 let accessToken = '';

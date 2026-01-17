@@ -12,26 +12,66 @@ export default function RegisterPage() {
   const router = useRouter();
   const [form, setForm] = useState({ username: "", email: "", password: "" });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [usernameChecking, setUsernameChecking] = useState(false);
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
+  const [usernameError, setUsernameError] = useState("");
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+    if (e.target.name === "username") {
+      // reset availability state while editing
+      setUsernameAvailable(null);
+      setUsernameError("");
+    }
+  };
+
+  const handleUsernameBlur = async () => {
+    const value = (form.username || "").trim();
+    if (!value) {
+      setUsernameAvailable(false);
+      setUsernameError("Tên người dùng không được để trống");
+      return;
+    }
+    setUsernameChecking(true);
+    try {
+      const res = await API.get("/api/auth/check-username", { params: { username: value } });
+      if (res.data && res.data.available) {
+        setUsernameAvailable(true);
+        setUsernameError("");
+      } else {
+        setUsernameAvailable(false);
+        setUsernameError("Tên người dùng đã tồn tại");
+      }
+    } catch (err) {
+      const message = toastApiError(err, "Kiểm tra username thất bại");
+      toast.error(message);
+      setUsernameAvailable(null);
+      setUsernameError("");
+    } finally {
+      setUsernameChecking(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
+    // previous inline error removed; use toast for errors
 
+    // prevent submit if username known to be taken
+    if (usernameAvailable === false) {
+      toast.error("Tên người dùng đã tồn tại. Vui lòng chọn tên khác.");
+      setLoading(false);
+      return;
+    }
     try {
       const res = await API.post("/api/auth/register", form);
       localStorage.setItem("accessToken", res.data.accessToken);
       localStorage.setItem("refreshToken", res.data.refreshToken);
       toast.success("Đăng ký thành công");
-      router.push("/");
+      router.push("/login");
     } catch (err: unknown) {
       const message = toastApiError(err, "Đăng ký thất bại");
-      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -45,7 +85,7 @@ export default function RegisterPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Tạo tài khoản</h1>
           <p className="text-sm text-muted-foreground">
             Đã có tài khoản?{" "}
-            <Link href="/auth/login" className="text-primary hover:underline">
+            <Link href="/login" className="text-primary hover:underline">
               Đăng nhập
             </Link>
           </p>
@@ -53,16 +93,7 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="username">Tên người dùng</Label>
-            <Input
-              id="username"
-              name="username"
-              value={form.username}
-              onChange={handleChange}
-              placeholder="Nhập tên người dùng"
-              required
-            />
-          </div>
+
 
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
@@ -89,8 +120,20 @@ export default function RegisterPage() {
               required
             />
           </div>
-
-          {error && <p className="text-destructive text-sm">{error}</p>}
+            <Label htmlFor="username">Tên nhân vật</Label>
+            <Input
+              id="username"
+              name="username"
+              value={form.username}
+              onChange={handleChange}
+              onBlur={handleUsernameBlur}
+              placeholder="Nhập tên người dùng"
+              required
+            />
+            {usernameChecking && <p className="text-sm text-gray-500">Đang kiểm tra tên người dùng...</p>}
+            {usernameError && <p className="text-destructive text-sm">{usernameError}</p>}
+          </div>
+          
 
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Đang đăng ký..." : "Đăng ký"}

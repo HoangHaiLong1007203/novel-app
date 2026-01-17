@@ -11,24 +11,47 @@ type Props = {
   mode?: "review" | "comment";
   chapterId?: string | undefined;
   onCreated?: (item: unknown) => void;
+  // If set, the composer is in reply mode and will post a reply to the given target
+  replyTargetId?: string | null;
+  replyTargetMode?: "review" | "comment" | null;
 };
 
-export default function RatingComment({ novelId, mode = "review", chapterId, onCreated }: Props) {
+export default function RatingComment({ novelId, mode = "review", chapterId, onCreated, replyTargetId = null, replyTargetMode = null }: Props) {
   const [rating, setRating] = useState<number>(4.0);
   const [onlyScore, setOnlyScore] = useState<boolean>(false);
   const [content, setContent] = useState<string>("");
   const [sending, setSending] = useState(false);
 
-  const placeholder = mode === "review" ? "nhập nội dung đánh giá" : "nhập nội dung bình luận";
+  const isReplying = Boolean(replyTargetId);
+  const placeholder = isReplying ? "nhập để trả lời" : (mode === "review" ? "nhập nội dung đánh giá" : "nhập nội dung bình luận");
 
   const handleSubmit = async () => {
-    if (mode === "comment" && content.trim().length === 0) {
+    if (!isReplying && mode === "comment" && content.trim().length === 0) {
       toast.error("Nội dung bình luận trống");
       return;
     }
 
     setSending(true);
     try {
+      if (isReplying && replyTargetId) {
+        // Reply flow: use appropriate reply endpoint
+        if (replyTargetMode === "review") {
+          const res = await API.post(`/api/reviews/${replyTargetId}/reply`, { content });
+          const created = res.data?.reply || res.data;
+          toast.success("Đã gửi phản hồi");
+          setContent("");
+          onCreated?.(created);
+        } else {
+          // comment reply
+          const res = await API.post(`/api/comments/${replyTargetId}/reply`, { content });
+          const created = res.data?.comment || res.data;
+          toast.success("Đã gửi phản hồi");
+          setContent("");
+          onCreated?.(created);
+        }
+        return;
+      }
+
       if (mode === "review") {
         const body = { novelId, rating: Math.round(rating * 10) / 10, content: onlyScore ? "" : content };
         const res = await API.post(`/api/reviews`, body);
@@ -60,7 +83,7 @@ export default function RatingComment({ novelId, mode = "review", chapterId, onC
 
   return (
     <div className="mb-4 p-3 rounded-xl bg-background/90">
-      {mode === "review" && (
+      {mode === "review" && !isReplying && (
         <label className="block text-sm font-semibold text-foreground mb-2">
           Điểm: <span className="font-bold">{rating.toFixed(1)}</span>
           <input
@@ -75,7 +98,7 @@ export default function RatingComment({ novelId, mode = "review", chapterId, onC
         </label>
       )}
 
-      {mode === "review" && (
+      {mode === "review" && !isReplying && (
         <div className="flex items-center gap-3 mb-2">
           <div className="flex-1 text-sm text-foreground">Tôi chỉ muốn chấm điểm (đánh giá không nội dung)</div>
           <Switch checked={onlyScore} onCheckedChange={(v) => setOnlyScore(Boolean(v))} />

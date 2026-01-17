@@ -52,7 +52,7 @@ docker run -p 9000:9000 -p 9090:9090 \
 Then configure the alias and bucket:
 
 ```bash
-mc alias set local http://localhost:9000 minioadmin minioadmin
+mc alias set local https://localhost:9000 minioadmin minioadmin
 mc mb local/novel-chapters-test
 mc policy set public local/novel-chapters-test
 ```

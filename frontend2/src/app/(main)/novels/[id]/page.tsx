@@ -30,6 +30,9 @@ interface Novel {
   coverImageUrl?: string;
   viewCount?: number;
   views?: number;
+  averageRating?: number;
+  reviewsCount?: number;
+  ratingCount?: number;
   poster?: { _id?: string; username?: string };
 }
 
@@ -46,6 +49,7 @@ interface Review {
   rating: number;
   content: string;
   createdAt: string;
+  repliesCount?: number;
 }
 
 interface Comment {
@@ -58,6 +62,12 @@ export default function NovelDetailPage() {
   const { id } = useParams();
   const { user } = useAuth();
   const [showReviewComposer, setShowReviewComposer] = useState(false);
+  const [reviewReplyTarget, setReviewReplyTarget] = useState<string | null>(null);
+  type IncomingReviewReply = { key: number; parentId: string; reply: { _id: string; user: { _id?: string; username: string; avatarUrl?: string }; content?: string; createdAt?: string; rating?: number; likes?: Array<string | { _id?: string }>; isLikedByCurrentUser?: boolean } } | null;
+  const [incomingReviewReply, setIncomingReviewReply] = useState<IncomingReviewReply>(null);
+  type IncomingCommentReply = IncomingReviewReply;
+  const [incomingCommentReply, setIncomingCommentReply] = useState<IncomingCommentReply>(null);
+  const [commentReplyTarget, setCommentReplyTarget] = useState<string | null>(null);
   const router = useRouter();
   const [novel, setNovel] = useState<Novel | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -177,6 +187,38 @@ export default function NovelDetailPage() {
     fetchData();
   }, [id]);
 
+  // If auth state becomes available after initial load, re-fetch reviews and comments
+  useEffect(() => {
+    if (!id) return;
+    if (!user) return;
+
+    let mounted = true;
+    const refetch = async () => {
+      try {
+        const reviewsRes = await API.get(`/api/reviews/novel/${id}`);
+        if (!mounted) return;
+        setReviews(reviewsRes.data?.reviews || []);
+      } catch {
+        if (!mounted) return;
+        setReviews((prev) => prev || []);
+      }
+
+      try {
+        const commentsRes = await API.get(`/api/comments/novel/${id}`);
+        if (!mounted) return;
+        setComments(commentsRes.data?.comments || []);
+      } catch {
+        if (!mounted) return;
+        setComments((prev) => prev || []);
+      }
+    };
+
+    refetch();
+    // clear any incoming reply after refetch to avoid stale notifications
+    setIncomingReviewReply(null);
+    return () => { mounted = false; };
+  }, [id, user]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -201,6 +243,19 @@ export default function NovelDetailPage() {
     status = "Còn tiếp",
     coverImageUrl = "/default-cover.jpg",
   } = novel || {};
+
+  const ratingsFromState = (reviews || []).filter((r) => typeof r.rating === "number" && r.rating > 0) as Review[];
+  const computedAvg = ratingsFromState.length > 0 ? (ratingsFromState.reduce((s, r) => s + (r.rating || 0), 0) / ratingsFromState.length) : null;
+  const avgRating = novel?.averageRating ?? computedAvg ?? 0;
+  const ratingCountFromState = ratingsFromState.length;
+  const ratingCount = ratingCountFromState > 0 ? ratingCountFromState : (novel?.reviewsCount ?? novel?.ratingCount ?? 0);
+
+  const renderStars = (rating: number) => {
+    const r = Math.round(rating || 0);
+    return Array.from({ length: 5 }).map((_, i) => (
+      <span key={i} className="text-amber-400">{i < r ? '★' : '☆'}</span>
+    ));
+  };
 
   const firstChapter = chapters.length > 0 ? chapters[0] : null;
 
@@ -244,6 +299,14 @@ export default function NovelDetailPage() {
             </div>
 
             <p className="text-sm opacity-80">Trạng thái: {status}</p>
+
+            <p className="text-sm opacity-80">
+              <span>
+                Đánh giá: <span className="font-semibold mr-2">{(avgRating || 0).toFixed(1)} / 5</span>
+                <span className="inline-flex items-center">{renderStars(avgRating || 0)}</span>
+                <span className="ml-2 opacity-70">({ratingCount ?? 0} lượt )</span>
+              </span>
+            </p>
 
             <div className="flex gap-3 mt-4">
               {firstChapter ? (
@@ -410,12 +473,56 @@ export default function NovelDetailPage() {
 
                 {showReviewComposer && (
                   <div className="mt-3 pointer-events-auto">
-                    <RatingComment novelId={typeof id === 'string' ? id : String(id)} mode="review" onCreated={(rv) => { setReviews((prev) => [rv as Review, ...prev]); setShowReviewComposer(false); }} />
+                    <RatingComment
+                      novelId={typeof id === 'string' ? id : String(id)}
+                      mode="review"
+                      replyTargetId={reviewReplyTarget}
+                      replyTargetMode={reviewReplyTarget ? "review" : null}
+                      onCreated={(created) => {
+                        if (reviewReplyTarget) {
+                          // It's a reply to an existing review: increment repliesCount and notify pane
+                          setReviews((prev) => prev.map((it) => it._id === reviewReplyTarget ? { ...it, repliesCount: (it.repliesCount ?? 0) + 1 } : it));
+                          const createdReply = created as NonNullable<typeof incomingReviewReply>['reply'];
+                          setIncomingReviewReply({ key: Date.now(), parentId: reviewReplyTarget, reply: createdReply });
+                          // KEEP composer open in reply mode until user toggles it off
+                        } else {
+                          setReviews((prev) => [created as Review, ...prev]);
+                          setShowReviewComposer(false);
+                        }
+                      }}
+                    />
                   </div>
                 )}
               </div>
 
-              <ReviewCommentPane mode="review" items={reviews} currentUserId={user?._id ?? null} onReply={undefined} onReport={undefined} onDelete={undefined} />
+              <ReviewCommentPane
+                novelId={typeof id === 'string' ? id : String(id)}
+                mode="review"
+                items={reviews}
+                currentUserId={user?._id ?? null}
+                incomingReply={incomingReviewReply}
+                onReply={(rid?: string) => {
+                  if (!rid) {
+                    setReviewReplyTarget(null);
+                    return;
+                  }
+                  setReviewReplyTarget(rid);
+                  setShowReviewComposer(true);
+                }}
+                onReport={undefined}
+                onDelete={(reviewId: string) => {
+                  // remove top-level review
+                  setReviews((prev) => prev.filter((r) => r._id !== reviewId));
+                }}
+                onChildDeleted={(parentId: string, childId?: string) => {
+                  // decrement repliesCount for parent review when child removed
+                  setReviews((prev) => prev.map((r) => r._id === parentId ? { ...r, repliesCount: Math.max(0, (r.repliesCount ?? 1) - 1) } : r));
+                  if (childId) {
+                    // also remove the child from comments list if present
+                    setComments((prev) => prev.filter((c) => c._id !== childId));
+                  }
+                }}
+              />
             </TabsContent>
             <TabsContent value="comment">
               <div className="fixed bottom-4 left-1/2 z-50 w-full max-w-5xl transform -translate-x-1/2 px-6">
@@ -424,17 +531,50 @@ export default function NovelDetailPage() {
                     novelId={typeof id === 'string' ? id : String(id)}
                     chapterId={firstChapter._id}
                     mode="comment"
+                    replyTargetId={commentReplyTarget}
+                    replyTargetMode={commentReplyTarget ? "comment" : null}
                     onCreated={(cm) => {
-                      setComments((prev) => [cm as Comment, ...prev]);
-                      const pane = document.getElementById("comment-pane");
-                      if (pane) pane.scrollTo({ top: 0, behavior: "smooth" });
+                      // If we are replying to an existing comment, keep composer in reply mode
+                      if (commentReplyTarget) {
+                        const createdReply = (cm as NonNullable<typeof incomingCommentReply>['reply']) || (cm as Comment);
+                        setIncomingCommentReply({ key: Date.now(), parentId: commentReplyTarget, reply: createdReply });
+                        // also add reply to comments list (append) so repliesCount and maps reflect it
+                        setComments((prev) => [...prev, cm as Comment]);
+                        // keep commentReplyTarget unchanged so composer remains in reply mode
+                      } else {
+                        setComments((prev) => [cm as Comment, ...prev]);
+                        const pane = document.getElementById("comment-pane");
+                        if (pane) pane.scrollTo({ top: 0, behavior: "smooth" });
+                      }
                     }}
                   />
                 ) : (
                   <div className="text-sm opacity-80 text-center">Không có chương để bình luận.</div>
                 )}
               </div>
-              <ReviewCommentPane id="comment-pane" mode="comment" items={comments} currentUserId={user?._id ?? null} onReply={undefined} onReport={undefined} onDelete={undefined} />
+              <ReviewCommentPane
+                id="comment-pane"
+                novelId={typeof id === 'string' ? id : String(id)}
+                mode="comment"
+                items={comments}
+                currentUserId={user?._id ?? null}
+                incomingReply={incomingCommentReply}
+                onReply={(cid?: string) => {
+                  if (!cid) { setCommentReplyTarget(null); return; }
+                  setCommentReplyTarget(cid);
+                }}
+                onReport={undefined}
+                onDelete={(commentId: string) => {
+                  // remove top-level comment immediately
+                  setComments((prev) => prev.filter((c) => c._id !== commentId));
+                }}
+                onChildDeleted={(parentId: string, childId?: string) => {
+                  // remove deleted child reply from comments list if present
+                  if (childId) {
+                    setComments((prev) => prev.filter((c) => c._id !== childId));
+                  }
+                }}
+              />
             </TabsContent>
             <TabsContent value="chuong">
               <ChapterList chapters={chapters} mode="read" novelId={normalizedNovelId} initialAsc={chaptersAsc} />

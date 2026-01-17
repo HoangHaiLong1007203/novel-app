@@ -20,6 +20,7 @@ interface SearchSuggestBarProps {
   size?: "sm" | "md" | "lg";
   className?: string;
   onSelect?: (novel: Novel) => void;
+  onSearch?: (q: string) => void;
   showCloseButton?: boolean;
   onClose?: () => void;
 }
@@ -29,6 +30,7 @@ export default function SearchSuggestBar({
   size = "md",
   className,
   onSelect,
+  onSearch,
   showCloseButton = false,
   onClose,
 }: SearchSuggestBarProps) {
@@ -57,9 +59,8 @@ export default function SearchSuggestBar({
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/novels/search?q=${encodeURIComponent(query)}`
-        );
+        const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+        const res = await fetch(`${base}/api/novels/search?q=${encodeURIComponent(query)}`);
 
         const data = await res.json();
         setResults(data.novels || []);
@@ -100,11 +101,12 @@ export default function SearchSuggestBar({
           type="button"
           aria-label="Search"
           onClick={() => {
-            if (query.trim()) {
-              router.push(`/search?q=${encodeURIComponent(query)}`);
-              setOpen(false);
-            }
-          }}
+              if (query.trim()) {
+                if (onSearch) onSearch(query.trim());
+                else router.push(`/search?q=${encodeURIComponent(query)}`);
+                setOpen(false);
+              }
+            }}
           className="absolute left-3 w-8 h-8 text-muted-foreground hover:text-foreground flex items-center justify-center rounded-xs border border-transparent hover:bg-gray-100 hover:border-gray-200 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring"
         >
           <Search className="w-4 h-4" />
@@ -123,8 +125,8 @@ export default function SearchSuggestBar({
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && query.trim()) {
-              // Navigate to search page with query
-              router.push(`/search?q=${encodeURIComponent(query)}`);
+              if (onSearch) onSearch(query.trim());
+              else router.push(`/search?q=${encodeURIComponent(query)}`);
               setOpen(false);
             }
           }}
@@ -181,13 +183,15 @@ export default function SearchSuggestBar({
                 tabIndex={0}
                 className="focus:outline-none border-t"
                 onClick={() => {
-                  router.push(`/search?q=${encodeURIComponent(query)}`);
+                  if (onSearch) onSearch(query.trim());
+                  else router.push(`/search?q=${encodeURIComponent(query)}`);
                   setOpen(false);
                   setQuery("");
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
-                    router.push(`/search?q=${encodeURIComponent(query)}`);
+                    if (onSearch) onSearch(query.trim());
+                    else router.push(`/search?q=${encodeURIComponent(query)}`);
                     setOpen(false);
                     setQuery("");
                   }

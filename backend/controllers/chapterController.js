@@ -3,6 +3,7 @@ import Novel from "../models/Novel.js";
 import Bookmark from "../models/Bookmark.js";
 import Notification from "../models/Notification.js";
 import User from "../models/User.js";
+import ReadingProgress from "../models/ReadingProgress.js";
 import Transaction from "../models/Transaction.js";
 import AppError from "../middlewares/errorHandler.js";
 import { uploadChapterFiles, generatePresignedChapterUrl } from "../services/uploadService.js";
@@ -139,9 +140,10 @@ const buildChapterResponse = (chapter, { hasAccess }) => {
 };
 
 const notifyBookmarkUsers = async ({ novelId, novelTitle, chapter }) => {
-  const bookmarks = await Bookmark.find({ novel: novelId }).populate("user", "_id");
-  if (!bookmarks.length) return;
-  const userIds = bookmarks.map((bookmark) => bookmark.user._id);
+  // Notify users who have a readingProgress for this novel and have enabled notifications
+  const subscribers = await ReadingProgress.find({ novel: novelId, notifyOnNewChapter: true }).populate('user', '_id');
+  if (!subscribers.length) return;
+  const userIds = subscribers.map((s) => s.user._id);
   const notificationMessage = `Truyện ${novelTitle} vừa có chương mới: ${chapter.title}`;
   const notifications = userIds.map((userId) => ({
     user: userId,

@@ -86,7 +86,8 @@ export default function PaymentReturnClient() {
           try {
             const res = await API.get("/api/auth/me");
             setUser(res.data);
-          } catch (err) {
+          } catch (error) {
+            console.error("Failed to refresh user after topup:", error);
             // fallback: update only coins if full user fetch fails
             if (user) setUser({ ...user, coins: data.coins });
           }

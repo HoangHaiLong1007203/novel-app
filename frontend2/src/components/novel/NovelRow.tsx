@@ -2,10 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Badge, Card } from "@/components/ui";
+import { Badge, Button, Card } from "@/components/ui";
 import { User } from "lucide-react";
 import { useRouter } from "next/navigation";
-import React from "react";
+import type { MouseEvent, ReactNode } from "react";
 
 interface NovelRowProps {
   novel: {
@@ -16,19 +16,36 @@ interface NovelRowProps {
     genres?: string[];
     coverImageUrl?: string;
   };
+  actions?: ReactNode;
+  onRowClick?: (novelId: string) => void;
+  mode?: "read" | "edit";
+  onRead?: (novelId: string) => void;
+  onEdit?: (novelId: string) => void;
 }
 
-export default function NovelRow({ novel }: NovelRowProps) {
+export default function NovelRow({ novel, actions, onRowClick, mode = "read", onRead, onEdit }: NovelRowProps) {
   const router = useRouter();
   // Ngăn click lan ra ngoài khi click vào tác giả hoặc thể loại
-  const handleRowClick = () => {
+  const goToRead = () => {
+    if (onRead) return onRead(novel._id);
     router.push(`/novels/${novel._id}`);
   };
-  const handleAuthorClick = (e: React.MouseEvent) => {
+  const goToEdit = () => {
+    if (onEdit) return onEdit(novel._id);
+    router.push(`/novels/update/${novel._id}`);
+  };
+  const handleRowClick = () => {
+    if (onRowClick) {
+      onRowClick(novel._id);
+      return;
+    }
+    goToRead();
+  };
+  const handleAuthorClick = (e: MouseEvent) => {
     e.stopPropagation();
     router.push(`/author/${encodeURIComponent(novel.author || "an-danh")}`);
   };
-  const handleGenreClick = (e: React.MouseEvent) => {
+  const handleGenreClick = (e: MouseEvent) => {
     e.stopPropagation();
     if (novel.genres?.[0]) {
       router.push(`/genre/${encodeURIComponent(novel.genres[0])}`);
@@ -36,7 +53,7 @@ export default function NovelRow({ novel }: NovelRowProps) {
   };
   return (
     <Card
-      className="!flex-row flex items-start gap-4 p-3 hover:shadow-md transition-shadow cursor-pointer w-full max-w-4xl min-w-[25rem] mx-auto"
+      className="relative group !flex-row flex items-start gap-4 p-3 hover:shadow-md transition-shadow cursor-pointer w-full max-w-4xl min-w-[25rem] mx-auto"
       onClick={handleRowClick}
       tabIndex={0}
       role="button"
@@ -67,7 +84,7 @@ export default function NovelRow({ novel }: NovelRowProps) {
           )}
         </div>
 
-        <div className="flex items-center justify-between mt-2">
+        <div className="flex items-center justify-between mt-2 gap-3">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <User size={14} />
             <span
@@ -88,7 +105,40 @@ export default function NovelRow({ novel }: NovelRowProps) {
             </Badge>
           )}
         </div>
+        {actions ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            {actions}
+          </div>
+        ) : null}
       </div>
+
+      {mode === "edit" && !actions && (
+        <>
+          <div className="pointer-events-none absolute inset-0 bg-black/40 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+          <div className="absolute inset-0 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
+            <Button
+              variant="secondary"
+              className="bg-white text-black hover:bg-primary hover:text-white"
+              onClick={(e) => {
+                e.stopPropagation();
+                goToRead();
+              }}
+            >
+              Đọc
+            </Button>
+            <Button
+              variant="secondary"
+              className="bg-white text-black hover:bg-primary hover:text-white"
+              onClick={(e) => {
+                e.stopPropagation();
+                goToEdit();
+              }}
+            >
+              Sửa
+            </Button>
+          </div>
+        </>
+      )}
     </Card>
   );
 }

@@ -8,7 +8,8 @@ import FormData from "form-data";
 
 dotenv.config();
 
-const BASE_URL = "http://localhost:5000/api/auth";
+const BASE = process.env.BASE_URL || 'https://localhost:5000';
+const BASE_URL = `${BASE}/api/auth`;
 
 const randomEmail = (prefix) => `${prefix}_${Date.now()}@example.com`;
 

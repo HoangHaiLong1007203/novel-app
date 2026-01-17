@@ -99,10 +99,18 @@ export const getReviewsByNovel = async (req, res, next) => {
       sort: sort
     });
 
-    // Add like status for current user
+    // If authenticated, avoid caching so clients get per-user flags fresh
+    if (userId) {
+      res.set('Cache-Control', 'no-store');
+    }
+
+    // Add like status for current user only when authenticated.
+    // If unauthenticated, do not set the flag so frontend can fall back to checking the `likes` array.
     const reviewsWithLikeStatus = reviews.map(review => {
       const reviewObj = review.toObject();
-      reviewObj.isLikedByCurrentUser = userId ? review.isLikedByUser(userId) : false;
+      if (userId) {
+        reviewObj.isLikedByCurrentUser = review.isLikedByUser(userId);
+      }
       return reviewObj;
     });
 
@@ -256,6 +264,7 @@ export const deleteReview = async (req, res, next) => {
     }
 
     await review.softDelete();
+    await review.save();
 
     // Update novel's average rating
     await updateNovelAverageRating(review.novel);
@@ -286,10 +295,17 @@ export const getReviewReplies = async (req, res, next) => {
       sort: sort
     });
 
-    // Add like status for current user
+    // If authenticated, avoid caching so clients get per-user flags and fresh data
+    if (userId) {
+      res.set('Cache-Control', 'no-store');
+    }
+
+    // Add like status for current user only when authenticated.
     const repliesWithLikeStatus = replies.map(reply => {
       const replyObj = reply.toObject();
-      replyObj.isLikedByCurrentUser = userId ? reply.isLikedByUser(userId) : false;
+      if (userId) {
+        replyObj.isLikedByCurrentUser = reply.isLikedByUser(userId);
+      }
       return replyObj;
     });
 

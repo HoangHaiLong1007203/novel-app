@@ -4,6 +4,7 @@ import { generateAccessToken, generateRefreshToken, verifyToken } from "../utils
 import AppError from "../middlewares/errorHandler.js"; // import AppError
 import Novel from "../models/Novel.js";
 import { normalizeText } from "../utils/normalize.js";
+import axios from "axios";
 
 // Register
 export const register = async ({ username, email, password }) => {
@@ -13,7 +14,11 @@ export const register = async ({ username, email, password }) => {
   }
 
   try {
-    // check email trước
+    // check username trước
+    const existingUsername = await User.findOne({ username });
+    if (existingUsername) throw new AppError("Username đã tồn tại", 400);
+
+    // check email
     const existingUser = await User.findOne({ email, "providers.name": "local" });
     if (existingUser) throw new AppError("Email đã tồn tại", 400);
 
@@ -55,36 +60,105 @@ export const login = async ({ email, password }) => {
   }
 };
 
-// Google login
-export const loginWithGoogle = async ({ email }) => {
-  let user = await User.findOne({ email, "providers.name": "google" });
-  if (!user) {
-    user = await User.create({
-      username: email.split("@")[0],
-      email,
-      providers: [{ name: "google" }],
-    });
+// Google login - verifies id_token from client (preferred) or falls back to email
+export const loginWithGoogle = async ({ idToken, email }) => {
+  try {
+    if (!idToken && !email) throw new AppError("Missing idToken or email", 400);
+
+    let verifiedEmail = email;
+    let providerId = null;
+
+    if (idToken) {
+      // Verify token with Google's tokeninfo endpoint
+      const resp = await axios.get("https://oauth2.googleapis.com/tokeninfo", {
+        params: { id_token: idToken },
+      });
+      const data = resp.data;
+      // If GOOGLE_CLIENT_ID is set, ensure audience matches
+      if (process.env.GOOGLE_CLIENT_ID && data.aud && data.aud !== process.env.GOOGLE_CLIENT_ID) {
+        throw new AppError("Invalid Google token audience", 401);
+      }
+      verifiedEmail = data.email;
+      providerId = data.sub;
+    }
+
+    let user = await User.findOne({ email: verifiedEmail, "providers.name": "google" });
+    if (!user) {
+      user = await User.create({
+        username: verifiedEmail.split("@")[0],
+        email: verifiedEmail,
+        providers: [{ name: "google", providerId }],
+      });
+    } else {
+      // ensure providerId is stored if available
+      if (providerId && !user.providers.some((p) => p.name === "google" && p.providerId)) {
+        user.providers = user.providers.map((p) => (p.name === "google" ? { ...p, providerId: p.providerId || providerId } : p));
+        await user.save();
+      }
+    }
+
+    return {
+      accessToken: generateAccessToken({ userId: user._id }),
+      refreshToken: generateRefreshToken({ userId: user._id }),
+    };
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    throw new AppError("Google login failed: " + err.message, 500);
   }
-  return {
-    accessToken: generateAccessToken({ userId: user._id }),
-    refreshToken: generateRefreshToken({ userId: user._id }),
-  };
 };
 
-// Facebook login
-export const loginWithFacebook = async ({ email }) => {
-  let user = await User.findOne({ email, "providers.name": "facebook" });
-  if (!user) {
-    user = await User.create({
-      username: email.split("@")[0],
-      email,
-      providers: [{ name: "facebook" }],
-    });
+// Facebook login - verifies access token from client (preferred) or falls back to email
+export const loginWithFacebook = async ({ accessToken, email }) => {
+  try {
+    if (!accessToken && !email) throw new AppError("Missing accessToken or email", 400);
+
+    let verifiedEmail = email;
+    let providerId = null;
+
+    if (accessToken) {
+      // If app credentials present, validate token with debug_token
+      if (process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET) {
+        const appToken = `${process.env.FACEBOOK_APP_ID}|${process.env.FACEBOOK_APP_SECRET}`;
+        const debugResp = await axios.get(`https://graph.facebook.com/debug_token`, {
+          params: { input_token: accessToken, access_token: appToken },
+        });
+        const dbg = debugResp.data.data;
+        if (!dbg || dbg.app_id !== process.env.FACEBOOK_APP_ID || !dbg.is_valid) {
+          throw new AppError("Invalid Facebook access token", 401);
+        }
+      }
+
+      // Fetch user profile to get email and id
+      const resp = await axios.get(`https://graph.facebook.com/me`, {
+        params: { access_token: accessToken, fields: "id,email" },
+      });
+      const data = resp.data;
+      verifiedEmail = data.email;
+      providerId = data.id;
+    }
+
+    let user = await User.findOne({ email: verifiedEmail, "providers.name": "facebook" });
+    if (!user) {
+      user = await User.create({
+        username: (verifiedEmail || `fb_${providerId}`).split("@")[0],
+        email: verifiedEmail,
+        providers: [{ name: "facebook", providerId }],
+      });
+    } else {
+      if (providerId && !user.providers.some((p) => p.name === "facebook" && p.providerId)) {
+        user.providers = user.providers.map((p) => (p.name === "facebook" ? { ...p, providerId: p.providerId || providerId } : p));
+        await user.save();
+      }
+    }
+
+    return {
+      accessToken: generateAccessToken({ userId: user._id }),
+      refreshToken: generateRefreshToken({ userId: user._id }),
+    };
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    throw new AppError("Facebook login failed: " + err.message, 500);
   }
-  return {
-    accessToken: generateAccessToken({ userId: user._id }),
-    refreshToken: generateRefreshToken({ userId: user._id }),
-  };
 };
 
 // Refresh token

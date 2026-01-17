@@ -128,14 +128,13 @@ export default function NovelsListPage({ initialFetchParams = {}, editable = fal
         ) : viewMode === "card" ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
             {novels.map((novel) => (
-              <div key={novel._id} className="group relative hover:scale-[1.02] transition-transform">
-                <NovelCard novel={novel} />
-                {editable && (
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col justify-center items-center gap-2">
-                    <Button className="bg-white text-black hover:bg-primary hover:text-white" onClick={() => handleRead(novel._id)}>Đọc</Button>
-                    <Button className="bg-white text-black hover:bg-primary hover:text-white" onClick={() => handleEdit(novel._id)}>Sửa</Button>
-                  </div>
-                )}
+              <div key={novel._id} className="hover:scale-[1.02] transition-transform">
+                <NovelCard
+                  novel={novel}
+                  mode={editable ? "edit" : "read"}
+                  onRead={handleRead}
+                  onEdit={handleEdit}
+                />
               </div>
             ))}
           </div>
@@ -150,7 +149,15 @@ export default function NovelsListPage({ initialFetchParams = {}, editable = fal
                 genres: novel.genres,
                 coverImageUrl: novel.coverImageUrl,
               };
-              return <NovelRow key={novel._id} novel={rowNovel} />;
+              return (
+                <NovelRow
+                  key={novel._id}
+                  novel={rowNovel}
+                  mode={editable ? "edit" : "read"}
+                  onRead={handleRead}
+                  onEdit={handleEdit}
+                />
+              );
             })}
           </div>
         )}

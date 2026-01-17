@@ -101,15 +101,21 @@ export const getNovels = async (req, res, next) => {
 
         const novels = await query.sort({ createdAt: -1 });
 
-        // If an `author` query was provided, also match by poster.username in
-        // memory after populating `poster`. This handles cases where existing
-        // records have `author` stored as an ObjectId (e.g. poster id) instead
-        // of the author's username.
+        // If an `author` query was provided, also match by poster.username.
+        // Use normalized comparison to handle case/diacritics differences between
+        // stored `author` and the query (frontend sends the displayed author
+        // string). Existing novels have `authorNormalized` saved at creation,
+        // so compare against that when available.
         let novelsResult = novels;
         if (author) {
-          novelsResult = novels.filter(n => {
+          const authorNorm = normalizeText(String(author));
+          novelsResult = novels.filter((n) => {
+            // prefer stored normalized author
+            if (n.authorNormalized && n.authorNormalized === authorNorm) return true;
+            // fallback to direct string compare of `author`
             if (n.author === author) return true;
-            if (n.poster && n.poster.username === author) return true;
+            // also match poster.username when normalized
+            if (n.poster && n.poster.username && normalizeText(n.poster.username) === authorNorm) return true;
             return false;
           });
         }
@@ -137,7 +143,7 @@ export const getNovels = async (req, res, next) => {
     // Advanced aggregation for complex queries
 
     if (genres) filter.genres = { $in: genres.split(",") };
-    if (author) filter.author = author;
+    if (author) filter.authorNormalized = normalizeText(String(author));
     if (poster) filter.poster = poster;
     if (status) filter.status = { $in: status.split(",") };
     if (type) filter.type = { $in: type.split(",") };

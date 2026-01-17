@@ -99,6 +99,12 @@ export const getCommentsByNovel = async (req, res, next) => {
       .limit(limitNum);
 
     // Add like status for current user
+    // If the response depends on an authenticated user, avoid caching to prevent
+    // stale 304 responses that don't include per-user flags.
+    if (userId) {
+      res.set('Cache-Control', 'no-store');
+    }
+
     const commentsWithLikeStatus = comments.map(comment => {
       const commentObj = comment.toObject();
       if (userId) {

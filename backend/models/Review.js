@@ -92,6 +92,8 @@ reviewSchema.statics.getTopLevelReviews = function(novelId, options = {}) {
     isDeleted: false
   })
   .populate('user', 'username avatarUrl')
+  // populate the virtual repliesCount so list responses include child counts
+  .populate('repliesCount')
   .sort(sortOption)
   .skip(skip)
   .limit(limit)
@@ -155,7 +157,9 @@ reviewSchema.methods.softDelete = function() {
 reviewSchema.index({ novel: 1, createdAt: -1 });
 reviewSchema.index({ parentReview: 1, createdAt: 1 });
 reviewSchema.index({ user: 1, createdAt: -1 });
-reviewSchema.index({ novel: 1, user: 1, parentReview: null }, { unique: true });
+// Ensure a user can create only one top-level review per novel.
+// Use a partial unique index so replies (which have parentReview set) are not constrained.
+reviewSchema.index({ novel: 1, user: 1 }, { unique: true, partialFilterExpression: { parentReview: null } });
 reviewSchema.index({ novel: 1 });
 
 const Review = mongoose.model("Review", reviewSchema);

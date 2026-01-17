@@ -56,6 +56,11 @@ const readingProgressSchema = new mongoose.Schema(
         default: 0,
       },
     }],
+    // Whether the user wants to receive notifications for new chapters of this novel
+    notifyOnNewChapter: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

@@ -6,7 +6,7 @@ import AppError from "../middlewares/errorHandler.js";
 // Create or update reading progress
 export const createReadingProgress = async (req, res, next) => {
   try {
-    const { novelId, chapterId, isRead, timeSpent = 0, startedAt, completedAt } = req.body;
+    const { novelId, chapterId, isRead, timeSpent = 0, startedAt, completedAt, notifyOnNewChapter } = req.body;
     const userId = req.user.userId;
 
     if (!novelId || !chapterId) {
@@ -36,8 +36,13 @@ export const createReadingProgress = async (req, res, next) => {
         user: userId,
         novel: novelId,
         readChapters: [],
-        readingSessions: []
+        readingSessions: [],
+        notifyOnNewChapter: !!notifyOnNewChapter,
       });
+    } else if (notifyOnNewChapter !== undefined) {
+      // allow caller to toggle subscription when creating/updating progress via this endpoint
+      readingProgress.notifyOnNewChapter = !!notifyOnNewChapter;
+      await readingProgress.save();
     }
 
     // Add chapter to read chapters and always record a reading session
@@ -83,7 +88,8 @@ export const createReadingProgress = async (req, res, next) => {
         totalChaptersRead: readingProgress.totalChaptersRead,
         completionPercentage: readingProgress.completionPercentage,
         canReview: readingProgress.canReview,
-        lastReadAt: readingProgress.lastReadAt
+        lastReadAt: readingProgress.lastReadAt,
+        notifyOnNewChapter: !!readingProgress.notifyOnNewChapter,
       }
     });
   } catch (error) {
@@ -127,7 +133,8 @@ export const getReadingProgress = async (req, res, next) => {
         completionPercentage: readingProgress.completionPercentage,
         canReview: readingProgress.canReview,
         lastReadAt: readingProgress.lastReadAt,
-        readingSessions: readingProgress.readingSessions
+        readingSessions: readingProgress.readingSessions,
+        notifyOnNewChapter: !!readingProgress.notifyOnNewChapter,
       }
     });
   } catch (error) {
@@ -174,14 +181,15 @@ export const getAllReadingProgress = async (req, res, next) => {
 export const updateReadingProgress = async (req, res, next) => {
   try {
     const { novelId } = req.params;
-    const { readChapterIds, timeSpent = 0 } = req.body;
+    const { readChapterIds, timeSpent = 0, notifyOnNewChapter } = req.body;
     const userId = req.user.userId;
 
     if (!novelId) {
       return next(new AppError("Novel ID là bắt buộc", 400));
     }
 
-    if (!readChapterIds || !Array.isArray(readChapterIds)) {
+    // readChapterIds is optional here — caller may only toggle notifyOnNewChapter
+    if (readChapterIds !== undefined && readChapterIds !== null && !Array.isArray(readChapterIds)) {
       return next(new AppError("readChapterIds phải là một mảng", 400));
     }
 
@@ -202,18 +210,23 @@ export const updateReadingProgress = async (req, res, next) => {
         user: userId,
         novel: novelId,
         readChapters: [],
-        readingSessions: []
+        readingSessions: [],
+        notifyOnNewChapter: !!notifyOnNewChapter,
       });
+    } else if (notifyOnNewChapter !== undefined) {
+      readingProgress.notifyOnNewChapter = !!notifyOnNewChapter;
     }
 
-    // Add new chapters to read chapters
+    // Add new chapters to read chapters (if provided)
     let newChaptersAdded = 0;
-    for (const chapterId of readChapterIds) {
-      const chapterIdStr = chapterId.toString();
-      const alreadyRead = readingProgress.readChapters.some(id => id.toString() === chapterIdStr);
-      if (!alreadyRead) {
-        readingProgress.addReadChapter(chapterId, timeSpent);
-        newChaptersAdded++;
+    if (Array.isArray(readChapterIds) && readChapterIds.length) {
+      for (const chapterId of readChapterIds) {
+        const chapterIdStr = chapterId.toString();
+        const alreadyRead = readingProgress.readChapters.some(id => id.toString() === chapterIdStr);
+        if (!alreadyRead) {
+          readingProgress.addReadChapter(chapterId, timeSpent);
+          newChaptersAdded++;
+        }
       }
     }
 
@@ -246,7 +259,8 @@ export const updateReadingProgress = async (req, res, next) => {
         totalChaptersRead: readingProgress.totalChaptersRead,
         completionPercentage: readingProgress.completionPercentage,
         canReview: readingProgress.canReview,
-        lastReadAt: readingProgress.lastReadAt
+        lastReadAt: readingProgress.lastReadAt,
+        notifyOnNewChapter: !!readingProgress.notifyOnNewChapter,
       }
     });
   } catch (error) {

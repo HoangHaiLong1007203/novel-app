@@ -14,7 +14,17 @@ interface Novel {
 }
 
 async function fetchNovels(sortBy: string, limit: number = 7) {
-  const res = await fetch(`http://localhost:5000/api/novels?sortBy=${sortBy}&limit=${limit}`, { cache: "no-store" });
+  const isServer = typeof window === "undefined";
+  // Dev-only workaround: tránh lỗi TLS khi backend dùng self-signed cert.
+  if (isServer && process.env.NODE_ENV !== "production") {
+    // Chỉ dùng trong môi trường dev local với mkcert.
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+  }
+
+  // Prefer explicit env var; for server-side rendering fall back to backend default.
+  const base = process.env.NEXT_PUBLIC_API_URL || (isServer ? `http://localhost:5000` : "");
+  const url = `${base}/api/novels?sortBy=${sortBy}&limit=${limit}`;
+  const res = await fetch(url, { cache: "no-store" });
   const { novels }: { novels: Novel[] } = await res.json();
   return novels;
 }

@@ -7,6 +7,8 @@ import {
   stripeWebhookHandler,
   listTransactions,
   listUserTransactions,
+  adminResolveTransaction,
+  adminRetryTransaction,
 } from "../controllers/paymentController.js";
 
 const router = express.Router();
@@ -22,6 +24,12 @@ router.post("/webhook/stripe", stripeWebhookHandler);
 
 // GET /api/payments/transactions - admin only
 router.get("/transactions", authMiddleware, requireAdmin, listTransactions);
+
+// POST /api/payments/transactions/:transactionId/resolve - admin only
+router.post("/transactions/:transactionId/resolve", authMiddleware, requireAdmin, adminResolveTransaction);
+
+// POST /api/payments/transactions/:transactionId/retry - admin only
+router.post("/transactions/:transactionId/retry", authMiddleware, requireAdmin, adminRetryTransaction);
 
 // GET /api/payments/me - lấy lịch sử giao dịch của user (nạp + mua)
 router.get("/me", authMiddleware, listUserTransactions);

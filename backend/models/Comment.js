@@ -68,11 +68,11 @@ commentSchema.virtual('repliesCount', {
   match: { isDeleted: false }
 });
 
-// Virtual for checking if user liked the comment
-commentSchema.virtual('isLikedByUser').get(function(userId) {
+// Instance method to check if a given user liked this comment
+commentSchema.methods.isLikedByUser = function(userId) {
   if (!userId) return false;
   return this.likes.some(id => id.toString() === userId.toString());
-});
+};
 
 // Index for better query performance
 commentSchema.index({ novel: 1, createdAt: -1 });

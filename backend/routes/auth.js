@@ -10,6 +10,7 @@ import {
   uploadAvatar,
   changeUsername,
   changePassword,
+  checkUsername,
   getReaderSettings,
   updateReaderSettings,
 } from "../controllers/authController.js";
@@ -21,6 +22,7 @@ const router = express.Router();
 
 // Auth routes
 router.post("/register", registerUser);
+router.get("/check-username", checkUsername);
 router.post("/login", loginUser);
 router.post("/google", googleLogin);
 router.post("/facebook", facebookLogin);

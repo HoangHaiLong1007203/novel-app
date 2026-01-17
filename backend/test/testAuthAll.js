@@ -6,8 +6,9 @@ import jwt from "jsonwebtoken";
 
 dotenv.config();
 
-const BASE_URL = "http://localhost:5000/api/auth";
-const PROTECTED_URL = "http://localhost:5000/api/protected";
+const BASE = process.env.BASE_URL || 'https://localhost:5000';
+const BASE_URL = `${BASE}/api/auth`;
+const PROTECTED_URL = `${BASE}/api/protected`;
 
 const randomEmail = (prefix) => `${prefix}_${Date.now()}@example.com`;
 

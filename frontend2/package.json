@@ -7,7 +7,9 @@
     "dev": "concurrently \"node scripts/gen-ui-index.mjs --watch\" \"next dev --turbopack\"",
     "build": "npm run gen:ui && next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "dev:https": "concurrently \"node scripts/gen-ui-index.mjs --watch\" \"next dev --turbopack --experimental-https --experimental-https-key ../localhost-key.pem --experimental-https-cert ../localhost.pem\"",
+    "dev:node-ca": "cross-env NODE_EXTRA_CA_CERTS=C:/Users/Admin/AppData/Local/mkcert/rootCA.pem npm run dev:https"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.3",
@@ -26,9 +28,9 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-toggle-group": "^1.1.11",
+    "@stripe/stripe-js": "^5.5.0",
     "@tiptap/react": "^3.15.3",
     "@tiptap/starter-kit": "^3.15.3",
-    "@stripe/stripe-js": "^5.5.0",
     "axios": "^1.12.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -49,6 +51,7 @@
     "@types/react-dom": "^19",
     "chokidar": "^4.0.3",
     "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "15.5.4",
     "postcss": "^8.5.6",

@@ -9,3 +9,23 @@ yarn-error.log
 # Build
 dist/
 .next/
+
+# Misc / OS / editors
+.DS_Store
+.vscode/
+.idea/
+
+# Coverage and logs
+coverage/
+logs/
+*.log
+
+# Secrets, keys, certs
+*.pem
+*.key
+*.crt
+.env*
+
+# Temporary
+tmp/
+temp/

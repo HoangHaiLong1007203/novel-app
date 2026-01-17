@@ -33,6 +33,12 @@ const userSchema = new mongoose.Schema(
       default: "user",
     },
 
+    status: {
+      type: String,
+      enum: ["active", "banned"],
+      default: "active",
+    },
+
     // Số xu để mua chương
     coins: { type: Number, default: 0 },
 

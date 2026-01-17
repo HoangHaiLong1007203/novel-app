@@ -2,12 +2,12 @@
 
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { GENRES } from "@/lib/genres";
 import { API } from "@/lib/api";
 import { Button, Input, Label, Textarea } from "@/components/ui";
 import { User } from "@/hook/useAuth";
 import { toast } from "@/lib/toast";
 import { toastApiError } from "@/lib/errors";
+import { useGenres } from "@/hook/useGenres";
 
 type NovelType = "sáng tác" | "dịch/đăng lại";
 type NovelStatus = "còn tiếp" | "tạm ngưng" | "hoàn thành";
@@ -39,6 +39,7 @@ interface NovelFormProps {
 
 export default function NovelForm({ user, onSuccess, novelId, initial }: NovelFormProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { names: genreNames } = useGenres();
 
   const [form, setForm] = useState<FormState>({
     title: initial?.title || "",
@@ -275,7 +276,7 @@ export default function NovelForm({ user, onSuccess, novelId, initial }: NovelFo
         <div>
           <Label>Thể loại *</Label>
           <div className="flex flex-wrap gap-2 mt-2">
-            {GENRES.map((g) => (
+            {genreNames.map((g) => (
               <Button
                 key={g}
                 type="button"

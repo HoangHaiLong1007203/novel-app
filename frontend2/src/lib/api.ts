@@ -1,10 +1,32 @@
 import axios from "axios";
 import { NormalizedError } from "@/lib/errors";
+import type {
+  AdminTransactionItem,
+  AdminTransactionQuery,
+  AdminTransactionStatus,
+  AdminTransactionsResponse,
+} from "@/types/adminTransactions";
+import type {
+  AdminReportItem,
+  AdminReportPriority,
+  AdminReportQuery,
+  AdminReportsResponse,
+  AdminReportStatus,
+} from "@/types/adminReports";
 
 export const API = axios.create({
-  baseURL:
-    process.env.NEXT_PUBLIC_API_URL ||
-    "http://localhost:5000", // fallback nếu quên .env
+  baseURL: (() => {
+    if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+    if (typeof window !== "undefined") {
+      // When opening built files via file:// (e.g. double-clicking .html),
+      // window.location.protocol === 'file:' and hostname may be empty.
+      // In that case, fall back to localhost:5000 so API calls still work locally.
+      const proto = window.location.protocol === "file:" ? "http:" : window.location.protocol;
+      const host = window.location.hostname || "localhost";
+      return `${proto}//${host}:5000`;
+    }
+    return "http://localhost:5000";
+  })(), // fallback nếu quên .env; matches page protocol/host at runtime
   withCredentials: true,
 });
 // ✅ Thêm interceptor để tự động gắn token vào header
@@ -161,20 +183,43 @@ export async function confirmTopup(payload: {
   };
 }
 
-export async function fetchAdminTransactions(limit = 50) {
-  const res = await API.get("/api/payments/transactions", { params: { limit } });
-  return res.data as {
-    summary: { totalVnd: number; totalCoins: number; count: number };
-    transactions: Array<{
-      _id: string;
-      user: { username: string; email?: string; coins?: number };
-      amount: number;
-      amountVnd?: number;
-      provider: PaymentProvider;
-      status: string;
-      createdAt: string;
-    }>;
-  };
+export async function fetchAdminTransactions(params: AdminTransactionQuery = {}) {
+  const res = await API.get<AdminTransactionsResponse>("/api/payments/transactions", {
+    params,
+  });
+  return res.data;
+}
+
+export async function fetchAdminReports(params: AdminReportQuery = {}) {
+  const res = await API.get<AdminReportsResponse>("/api/reports/admin", { params });
+  return res.data;
+}
+
+type AdminTransactionActionResponse = {
+  success: boolean;
+  transaction: AdminTransactionItem;
+  coins?: number | null;
+  alreadyCompleted?: boolean;
+};
+
+type ResolvableAdminStatus = Extract<AdminTransactionStatus, "success" | "failed" | "canceled">;
+
+export async function resolveAdminTransaction(transactionId: string, payload: { status: ResolvableAdminStatus; reason?: string }) {
+  const res = await API.post<AdminTransactionActionResponse>(`/api/payments/transactions/${transactionId}/resolve`, payload);
+  return res.data;
+}
+
+export async function retryAdminTransaction(transactionId: string) {
+  const res = await API.post<AdminTransactionActionResponse>(`/api/payments/transactions/${transactionId}/retry`);
+  return res.data;
+}
+
+export async function updateAdminReport(
+  reportId: string,
+  payload: { status?: AdminReportStatus; priority?: AdminReportPriority; resolutionNote?: string }
+) {
+  const res = await API.patch<{ success: boolean; report: AdminReportItem }>(`/api/reports/admin/${reportId}`, payload);
+  return res.data;
 }
 
 export async function fetchUserTransactions(page = 1, limit = 20, type?: "topup" | "purchase") {

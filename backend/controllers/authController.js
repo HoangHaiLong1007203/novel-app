@@ -112,6 +112,21 @@ export const changePassword = async (req, res, next) => {
   }
 };
 
+export const checkUsername = async (req, res, next) => {
+  try {
+    const username = req.query.username;
+    if (!username || typeof username !== "string") {
+      return res.json({ available: false });
+    }
+    const trimmed = username.trim();
+    if (trimmed.length === 0) return res.json({ available: false });
+    const existing = await User.findOne({ username: trimmed });
+    return res.json({ available: !existing });
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const getReaderSettings = async (req, res, next) => {
   try {
     const settings = await authService.getReaderSettings(req.user.userId);

@@ -36,6 +36,7 @@ export default function ReadingCard({ progress, onRemoved }: Props) {
   const [totalChapters, setTotalChapters] = useState<number | null>(null);
   
   const [lastReadChapterId, setLastReadChapterId] = useState<string | null>(null);
+  const [notifyEnabled, setNotifyEnabled] = useState<boolean>(false);
   const router = useRouter();
 
   // Determine the displayed progress based on position of last-read chapter
@@ -72,6 +73,7 @@ export default function ReadingCard({ progress, onRemoved }: Props) {
           const progRes = await API.get(`/api/reading-progress/${novel._id}`);
           if (!mounted) return;
           const rp = progRes.data?.readingProgress;
+          setNotifyEnabled(!!rp?.notifyOnNewChapter);
           // Prefer last reading session chapter if available
           const sessionLast = rp?.readingSessions?.length ? rp.readingSessions[rp.readingSessions.length - 1]?.chapter : null;
           const readChLast = rp?.readChapters?.length ? (rp.readChapters[rp.readChapters.length - 1]._id || rp.readChapters[rp.readChapters.length - 1]) : null;
@@ -122,12 +124,25 @@ export default function ReadingCard({ progress, onRemoved }: Props) {
         </div>
 
         <button
-          onClick={(e) => e.stopPropagation()}
-          title="Thông báo chương mới"
+          onClick={async (e) => {
+            e.stopPropagation();
+            const newVal = !notifyEnabled;
+            // Optimistic UI
+            setNotifyEnabled(newVal);
+            try {
+              if (!novel._id) return;
+              await API.put(`/api/reading-progress/${novel._id}`, { notifyOnNewChapter: newVal });
+            } catch (err) {
+              // revert on error (e.g., not authenticated)
+              setNotifyEnabled((prev) => !prev);
+              console.error('Không thể cập nhật thông báo:', err);
+            }
+          }}
+          title={notifyEnabled ? "Tắt thông báo" : "Bật thông báo"}
           className="p-2 rounded hover:bg-muted"
           aria-label="Thông báo"
         >
-          <Icon name="bell" size={18} />
+          <Icon name={notifyEnabled ? "bell" : "bellOff"} size={18} />
         </button>
 
         <SheetTrigger asChild>

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import ChapterRangeSelect from "@/components/ui/ChapterRangeSelect";
-import { GENRES } from "@/lib/genres"; // 🔹 import danh sách thể loại
+import { useGenres } from "@/hook/useGenres";
 
 interface FilterState {
   categories: string[];
@@ -24,6 +24,7 @@ interface NovelFilterProps {
 
 export default function NovelFilter(props: NovelFilterProps) {
   const { onFilterChange, initialFilters } = props;
+  const { names: genreNames } = useGenres();
   const [filter, setFilter] = useState<FilterState>({
     categories: [],
     genres: [],
@@ -117,7 +118,7 @@ export default function NovelFilter(props: NovelFilterProps) {
       <div>
         <h3 className="font-semibold mb-2">Thể loại</h3>
         <div className="flex flex-wrap gap-2">
-          {GENRES.map((g) => (
+          {genreNames.map((g) => (
             <Badge
               key={g}
               className={`cursor-pointer px-3 py-1 ${
