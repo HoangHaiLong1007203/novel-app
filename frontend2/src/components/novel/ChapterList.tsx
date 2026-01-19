@@ -10,6 +10,7 @@ import { ArrowUpDown, MoreVertical, Edit2, Trash2 } from "lucide-react";
 import { useConfirm } from "@/components/ui/confirm/ConfirmProvider";
 import { toast } from "@/lib/toast";
 import { toastApiError } from "@/lib/errors";
+import { useAuth } from "@/hook/useAuth";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -34,14 +35,18 @@ interface Props {
   novelId?: string;
   initialAsc?: boolean;
   onChangeChapters?: (next: Chapter[]) => void; // called when create adds
+  onReport?: (chapterId: string) => void;
+  onRequestDelete?: (chapterId: string) => Promise<void | boolean>;
 }
 
-export default function ChapterList({ chapters, mode = "read", novelId, initialAsc = true, onChangeChapters }: Props) {
+export default function ChapterList({ chapters, mode = "read", novelId, initialAsc = true, onChangeChapters, onReport, onRequestDelete }: Props) {
+  const { user } = useAuth();
   const [asc, setAsc] = useState<boolean>(initialAsc);
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<(Chapter & { content?: string }) | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const confirm = useConfirm();
+  
   const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
   const pathname = typeof window !== "undefined" ? window.location.pathname : null;
 
@@ -162,6 +167,7 @@ export default function ChapterList({ chapters, mode = "read", novelId, initialA
                       key={ch._id}
                       chapter={{ _id: ch._id, chapterNumber: Number(ch.chapterNumber ?? 0), title: ch.title || "", isLocked: ch.isLocked }}
                       isActive={Boolean(activeChapterId && activeChapterId === ch._id)}
+                      onReport={onReport}
                     />
                 );
               }
@@ -244,6 +250,16 @@ export default function ChapterList({ chapters, mode = "read", novelId, initialA
                                       toast.error("Không có novelId");
                                       return;
                                     }
+                                    // If parent wants to handle delete (e.g., show ReasonDialog), delegate
+                                    if (typeof onRequestDelete === "function") {
+                                      try {
+                                        await onRequestDelete(ch._id);
+                                      } catch (e) {
+                                        console.error("onRequestDelete handler failed", e);
+                                      }
+                                      return;
+                                    }
+
                                     try {
                                       const confirmed = await confirm({
                                         title: "Xác nhận xóa chương",
@@ -256,6 +272,7 @@ export default function ChapterList({ chapters, mode = "read", novelId, initialA
                                     } catch {
                                       return;
                                     }
+
                                     try {
                                       setDeletingId(ch._id);
                                       await API.delete(`/api/novels/${encodeURIComponent(novelId)}/chapters/${encodeURIComponent(ch._id)}`);
@@ -289,6 +306,7 @@ export default function ChapterList({ chapters, mode = "read", novelId, initialA
           )}
         </div>
       </div>
+      
     </div>
   );
 }

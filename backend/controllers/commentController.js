@@ -1,6 +1,8 @@
 import Comment from "../models/Comment.js";
 import Novel from "../models/Novel.js";
 import Chapter from "../models/Chapter.js";
+import User from "../models/User.js";
+import Notification from "../models/Notification.js";
 import AppError from "../middlewares/errorHandler.js";
 
 // Create a new comment
@@ -126,6 +128,34 @@ export const getCommentsByNovel = async (req, res, next) => {
         hasPrevPage: pageNum > 1
       }
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get a single comment by id
+export const getCommentById = async (req, res, next) => {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user?.userId;
+
+    const comment = await Comment.findById(commentId)
+      .populate('user', 'username avatarUrl')
+      .populate('chapter', 'chapterNumber title')
+      .lean();
+
+    if (!comment || comment.isDeleted) {
+      return next(new AppError("Bình luận không tồn tại", 404));
+    }
+
+    if (userId) {
+      const commentDoc = await Comment.findById(commentId);
+      if (commentDoc) {
+        comment.isLikedByUser = commentDoc.isLikedByUser(userId);
+      }
+    }
+
+    res.json({ comment });
   } catch (error) {
     next(error);
   }
@@ -258,13 +288,29 @@ export const deleteComment = async (req, res, next) => {
       return next(new AppError("Bình luận không tồn tại", 404));
     }
 
-    if (comment.user.toString() !== userId) {
+    const user = await User.findById(userId).select("role");
+    const isAdmin = user?.role === "admin";
+    const isOwner = comment.user.toString() === userId;
+    if (!isOwner && !isAdmin) {
       return next(new AppError("Bạn không có quyền xóa bình luận này", 403));
     }
 
     comment.isDeleted = true;
     comment.deletedAt = new Date();
     await comment.save();
+
+    if (isAdmin) {
+      const reason = (req.body?.reason || "").toString().trim();
+      const reasonText = reason ? ` Lý do: ${reason}` : "";
+      await Notification.create({
+        user: comment.user,
+        title: "Bình luận bị xóa",
+        message: `Một bình luận của bạn đã bị xóa bởi admin.${reasonText}`,
+        type: "system",
+        relatedNovel: comment.novel,
+        relatedChapter: comment.chapter,
+      });
+    }
 
     // Update novel's comment count
     await Novel.findByIdAndUpdate(comment.novel, { $inc: { commentsCount: -1 } });

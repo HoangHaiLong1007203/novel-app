@@ -9,6 +9,7 @@ export * from "./input";
 export * from "./label";
 export * from "./pagination";
 export * from "./PaginationCompact";
+export * from "./ReasonDialog";
 export * from "./scroll-area";
 export * from "./SearchSuggestBar";
 export * from "./select";

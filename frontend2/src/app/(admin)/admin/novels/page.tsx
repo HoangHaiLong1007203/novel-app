@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import AdminGenreManager from "@/components/admin/AdminGenreManager";
 import NovelSearchPanel from "@/components/novel/NovelSearchPanel";
 
+
 export default function AdminNovelsPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -59,6 +60,7 @@ export default function AdminNovelsPage() {
           />
         </TabsContent>
       </Tabs>
+      
     </section>
   );
 }

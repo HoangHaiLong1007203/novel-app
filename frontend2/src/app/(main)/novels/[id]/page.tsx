@@ -3,8 +3,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useMemo, useState, useRef } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
@@ -18,8 +18,11 @@ import ChapterList from "../../../../components/novel/ChapterList";
 import NovelStats from "@/components/novel/NovelStats";
 import NovelCarousel from "@/components/novel/NovelCarousel";
 import NovelTile from "@/components/novel/NovelTile";
-import { API, addBookmark, getUserBookmarks, removeBookmark } from "@/lib/api";
+import { API, addBookmark, getUserBookmarks, removeBookmark, type ReportTargetType } from "@/lib/api";
 import { toast } from "@/lib/toast";
+import { toastApiError } from "@/lib/errors";
+import ReportDialog from "@/components/report/ReportDialog";
+import ReasonDialog from "@/components/ui/ReasonDialog";
 
 interface Novel {
   _id: string;
@@ -46,7 +49,7 @@ interface Chapter {
 
 interface Review {
   _id: string;
-  user: { username: string; avatarUrl?: string };
+  user: { _id?: string; username: string; avatarUrl?: string };
   rating: number;
   content: string;
   createdAt: string;
@@ -55,13 +58,15 @@ interface Review {
 
 interface Comment {
   _id: string;
-  user: { username: string; avatarUrl?: string };
+  user: { _id?: string; username: string; avatarUrl?: string };
   content: string;
   createdAt: string;
 }
 export default function NovelDetailPage() {
   const { id } = useParams();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
+  const isAdmin = (user?.role || "").toString().toLowerCase() === "admin";
   const [showReviewComposer, setShowReviewComposer] = useState(false);
   const [reviewReplyTarget, setReviewReplyTarget] = useState<string | null>(null);
   type IncomingReviewReply = { key: number; parentId: string; reply: { _id: string; user: { _id?: string; username: string; avatarUrl?: string }; content?: string; createdAt?: string; rating?: number; likes?: Array<string | { _id?: string }>; isLikedByCurrentUser?: boolean } } | null;
@@ -84,6 +89,12 @@ export default function NovelDetailPage() {
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [inBookshelf, setInBookshelf] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [tabValue, setTabValue] = useState<string>(searchParams.get("tab") ?? "gioithieu");
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportTarget, setReportTarget] = useState<{ targetType: ReportTargetType; targetId: string } | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: "comment" | "review"; id: string } | null>(null);
+  const reportFetchRef = useRef<string | null>(null);
 
   const normalizedNovelId = useMemo(() => {
     if (typeof id === "string") return id;
@@ -191,6 +202,50 @@ export default function NovelDetailPage() {
     fetchData();
   }, [id]);
 
+  useEffect(() => {
+    const nextTab = searchParams.get("tab") ?? "gioithieu";
+    setTabValue(nextTab);
+  }, [searchParams]);
+
+  useEffect(() => {
+    const targetId = searchParams.get("targetId");
+    const targetType = searchParams.get("targetType");
+    if (!targetId) return;
+    if (!targetType) return;
+    const key = `${targetType}:${targetId}`;
+    if (reportFetchRef.current === key) return;
+
+    const ensureTarget = async () => {
+      try {
+        if (targetType === "comment" && !comments.some((c) => c._id === targetId)) {
+          const res = await API.get(`/api/comments/${targetId}`);
+          const comment = res.data?.comment;
+          if (comment) {
+            setComments((prev) => [comment, ...prev]);
+          }
+        }
+        if (targetType === "review" && !reviews.some((r) => r._id === targetId)) {
+          const res = await API.get(`/api/reviews/${targetId}`);
+          const review = res.data?.review;
+          if (review) {
+            setReviews((prev) => [review, ...prev]);
+          }
+        }
+      } catch {
+        // ignore
+      } finally {
+        reportFetchRef.current = key;
+      }
+    };
+
+    void ensureTarget();
+
+    const el = document.getElementById(`report-target-${targetId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [searchParams, reviews, comments, tabValue]);
+
   // If auth state becomes available after initial load, re-fetch reviews and comments
   useEffect(() => {
     if (!id) return;
@@ -225,6 +280,39 @@ export default function NovelDetailPage() {
     setIncomingReviewReply(null);
     return () => { mounted = false; };
   }, [id, user]);
+
+  const handleReport = (targetType: ReportTargetType, targetId: string) => {
+    if (!user) {
+      toast.error("Vui lòng đăng nhập để báo cáo");
+      return;
+    }
+    setReportTarget({ targetType, targetId });
+    setReportOpen(true);
+  };
+
+  const requestDelete = (type: "comment" | "review", id: string) => {
+    if (isAdmin) {
+      setDeleteTarget({ type, id });
+      setDeleteOpen(true);
+      return;
+    }
+    void handleDelete(type, id, "");
+  };
+
+  const handleDelete = async (type: "comment" | "review", id: string, reason?: string) => {
+    try {
+      if (type === "comment") {
+        await API.delete(`/api/comments/${id}`, { data: reason ? { reason } : {} });
+        setComments((prev) => prev.filter((c) => c._id !== id));
+      } else {
+        await API.delete(`/api/reviews/${id}`, { data: reason ? { reason } : {} });
+        setReviews((prev) => prev.filter((r) => r._id !== id));
+      }
+      toast.success("Đã xóa");
+    } catch (error) {
+      toastApiError(error, "Không thể xóa");
+    }
+  };
 
   if (loading) {
     return (
@@ -267,6 +355,7 @@ export default function NovelDetailPage() {
   const firstChapter = chapters.length > 0 ? chapters[0] : null;
 
   return (
+    <>
     <div className="relative min-h-screen text-white">
       {/* --- ảnh nền mờ --- */}
       <div className="absolute inset-0 -z-10 overflow-hidden">
@@ -398,7 +487,7 @@ export default function NovelDetailPage() {
 
         {/* Tabs: Giới thiệu, Đánh giá, Comment, Danh sách chương */}
         <div className="mt-8 bg-background/60 backdrop-blur-sm rounded-xl p-4 text-foreground">
-          <Tabs defaultValue="gioithieu" className="w-full">
+          <Tabs value={tabValue} onValueChange={setTabValue} className="w-full">
             <TabsList className="w-full">
               <TabsTrigger value="gioithieu" className="flex-1">Giới thiệu</TabsTrigger>
               <TabsTrigger value="danhgia" className="flex-1">Đánh giá</TabsTrigger>
@@ -507,6 +596,7 @@ export default function NovelDetailPage() {
                 mode="review"
                 items={reviews}
                 currentUserId={user?._id ?? null}
+                isAdmin={isAdmin}
                 incomingReply={incomingReviewReply}
                 onReply={(rid?: string) => {
                   if (!rid) {
@@ -516,11 +606,8 @@ export default function NovelDetailPage() {
                   setReviewReplyTarget(rid);
                   setShowReviewComposer(true);
                 }}
-                onReport={undefined}
-                onDelete={(reviewId: string) => {
-                  // remove top-level review
-                  setReviews((prev) => prev.filter((r) => r._id !== reviewId));
-                }}
+                onReport={(reviewId: string) => handleReport("review", reviewId)}
+                onDelete={(reviewId: string) => requestDelete("review", reviewId)}
                 onChildDeleted={(parentId: string, childId?: string) => {
                   // decrement repliesCount for parent review when child removed
                   setReviews((prev) => prev.map((r) => r._id === parentId ? { ...r, repliesCount: Math.max(0, (r.repliesCount ?? 1) - 1) } : r));
@@ -565,16 +652,14 @@ export default function NovelDetailPage() {
                 mode="comment"
                 items={comments}
                 currentUserId={user?._id ?? null}
+                isAdmin={isAdmin}
                 incomingReply={incomingCommentReply}
                 onReply={(cid?: string) => {
                   if (!cid) { setCommentReplyTarget(null); return; }
                   setCommentReplyTarget(cid);
                 }}
-                onReport={undefined}
-                onDelete={(commentId: string) => {
-                  // remove top-level comment immediately
-                  setComments((prev) => prev.filter((c) => c._id !== commentId));
-                }}
+                onReport={(commentId: string) => handleReport("comment", commentId)}
+                onDelete={(commentId: string) => requestDelete("comment", commentId)}
                 onChildDeleted={(parentId: string, childId?: string) => {
                   // remove deleted child reply from comments list if present
                   if (childId) {
@@ -584,11 +669,39 @@ export default function NovelDetailPage() {
               />
             </TabsContent>
             <TabsContent value="chuong">
-              <ChapterList chapters={chapters} mode="read" novelId={normalizedNovelId} initialAsc={chaptersAsc} />
+              <ChapterList
+                chapters={chapters}
+                mode="read"
+                novelId={normalizedNovelId}
+                initialAsc={chaptersAsc}
+                onReport={(chapterId: string) => handleReport("chapter", chapterId)}
+              />
             </TabsContent>
           </Tabs>
         </div>
       </div>
     </div>
+    <ReportDialog
+      open={reportOpen}
+      onOpenChange={setReportOpen}
+      targetType={reportTarget?.targetType}
+      targetId={reportTarget?.targetId}
+      onSubmitted={() => setReportTarget(null)}
+    />
+    <ReasonDialog
+      open={deleteOpen}
+      onOpenChange={(open) => {
+        setDeleteOpen(open);
+        if (!open) setDeleteTarget(null);
+      }}
+      title="Xóa nội dung"
+      description="Bạn có thể nhập lý do (không bắt buộc)."
+      confirmText="Xóa"
+      onConfirm={async (reason) => {
+        if (!deleteTarget) return;
+        await handleDelete(deleteTarget.type, deleteTarget.id, reason);
+      }}
+    />
+    </>
   );
 }

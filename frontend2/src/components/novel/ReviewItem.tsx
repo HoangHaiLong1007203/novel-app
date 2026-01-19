@@ -12,9 +12,10 @@ interface ReviewItemProps {
   onReply?: (reviewId: string) => void;
   onReport?: (reviewId: string) => void;
   onDelete?: (reviewId: string) => void;
+  canDelete?: boolean;
 }
 
-export default function ReviewItem({ review, currentUserId, onReply, onReport, onDelete }: ReviewItemProps) {
+export default function ReviewItem({ review, currentUserId, onReply, onReport, onDelete, canDelete }: ReviewItemProps) {
   return (
     <CommentOrReviewItem
       mode="review"
@@ -29,6 +30,7 @@ export default function ReviewItem({ review, currentUserId, onReply, onReport, o
       onReply={onReply}
       onReport={onReport}
       onDelete={onDelete}
+      canDelete={canDelete}
     />
   );
 }

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { RefreshCw, Shield } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui";
 import { RecentCriticalReports } from "@/components/admin/reports/RecentCriticalReports";
@@ -18,6 +19,7 @@ import { ReportTable } from "@/components/admin/reports/ReportTable";
 import { useAdminReports } from "@/hook/useAdminReports";
 import { useAuth } from "@/hook/useAuth";
 import type { AdminReportItem } from "@/types/adminReports";
+import { toast } from "@/lib/toast";
 
 const STATUS_FILTER_VALUES: StatusFilterValue[] = ["pending", "reviewing", "resolved", "dismissed"];
 const PRIORITY_FILTER_VALUES: PriorityFilterValue[] = ["high", "medium", "low"];
@@ -36,6 +38,7 @@ const normalizeTargetOptions = (values?: string[]): TargetTypeFilterValue[] | un
 export default function AdminReportsPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const router = useRouter();
   const [selected, setSelected] = useState<AdminReportItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
@@ -77,6 +80,36 @@ export default function AdminReportsPage() {
 
   const handleReportUpdate = (updated: AdminReportItem) => {
     setSelected(updated);
+  };
+
+  const resolveTargetUrl = (report: AdminReportItem) => {
+    const meta = report.metadata as Record<string, unknown> | null | undefined;
+    const novelId = meta?.novelId as string | undefined;
+    if (report.targetType === "chapter") {
+      if (novelId) return `/novels/${encodeURIComponent(novelId)}/chapters/${encodeURIComponent(report.targetId)}`;
+      return `/chapters/${encodeURIComponent(report.targetId)}`;
+    }
+    if (report.targetType === "comment") {
+      if (!novelId) return null;
+      return `/novels/${encodeURIComponent(novelId)}?tab=comment&targetType=comment&targetId=${encodeURIComponent(report.targetId)}`;
+    }
+    if (report.targetType === "review") {
+      if (!novelId) return null;
+      return `/novels/${encodeURIComponent(novelId)}?tab=danhgia&targetType=review&targetId=${encodeURIComponent(report.targetId)}`;
+    }
+    if (report.targetType === "novel") {
+      return `/novels/${encodeURIComponent(report.targetId)}`;
+    }
+    return null;
+  };
+
+  const handleNavigate = (report: AdminReportItem) => {
+    const url = resolveTargetUrl(report);
+    if (!url) {
+      toast.error("Không tìm thấy đường dẫn đến đối tượng báo cáo");
+      return;
+    }
+    router.push(url);
   };
 
   if (!isAdmin) {
@@ -144,7 +177,7 @@ export default function AdminReportsPage() {
         />
 
         <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-          <ReportTable reports={data?.reports} loading={loading} onSelect={handleSelect} />
+          <ReportTable reports={data?.reports} loading={loading} onSelect={handleSelect} onNavigate={handleNavigate} />
           <RecentCriticalReports reports={criticalReports} loading={loading} />
         </div>
 
@@ -165,6 +198,7 @@ export default function AdminReportsPage() {
         priorityOptions={data?.filters.priorities}
         onReportUpdate={handleReportUpdate}
         onActionCompleted={refresh}
+        onNavigate={handleNavigate}
       />
     </section>
   );

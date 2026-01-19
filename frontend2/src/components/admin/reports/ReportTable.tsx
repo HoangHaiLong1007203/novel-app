@@ -9,6 +9,7 @@ interface ReportTableProps {
   reports?: AdminReportItem[];
   loading: boolean;
   onSelect: (report: AdminReportItem) => void;
+  onNavigate?: (report: AdminReportItem) => void;
 }
 
 const TARGET_LABELS: Record<AdminReportItem["targetType"], string> = {
@@ -20,17 +21,17 @@ const TARGET_LABELS: Record<AdminReportItem["targetType"], string> = {
   system: "Hệ thống",
 };
 
-export function ReportTable({ reports, loading, onSelect }: ReportTableProps) {
+export function ReportTable({ reports, loading, onSelect, onNavigate }: ReportTableProps) {
   return (
     <div className="rounded-2xl border">
       <table className="w-full table-fixed text-sm">
         <thead>
           <tr className="border-b text-left text-xs uppercase text-muted-foreground">
-            <th className="w-[18%] border-r border-border/50 px-4 py-3">Thời gian</th>
-            <th className="w-[32%] border-r border-border/50 px-4 py-3">Đối tượng</th>
-            <th className="w-[25%] border-r border-border/50 px-4 py-3">Người báo cáo</th>
+            <th className="w-[13%] border-r border-border/50 px-4 py-3">Thời gian</th>
+            <th className="w-[37%] border-r border-border/50 px-4 py-3">Đối tượng</th>
+            <th className="w-[20%] border-r border-border/50 px-4 py-3">Người báo cáo</th>
             <th className="w-[15%] border-r border-border/50 px-4 py-3">Trạng thái</th>
-            <th className="w-[10%] px-4 py-3" aria-label="Hành động" />
+            <th className="w-[15%] px-4 py-3" aria-label="Hành động" />
           </tr>
         </thead>
         <tbody>
@@ -74,10 +75,17 @@ export function ReportTable({ reports, loading, onSelect }: ReportTableProps) {
                       <ReportStatusBadge status={report.status} />
                       <ReportPriorityBadge priority={report.priority} />
                     </td>
-                    <td className="px-4 py-3 text-right align-top">
-                      <Button variant="outline" size="sm" onClick={() => onSelect(report)}>
-                        Chi tiết
-                      </Button>
+                    <td className="px-4 py-3 text-center align-middle">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        {onNavigate ? (
+                          <Button variant="ghost" size="sm" onClick={() => onNavigate(report)}>
+                            Xem
+                          </Button>
+                        ) : null}
+                        <Button variant="outline" size="sm" onClick={() => onSelect(report)}>
+                          Chi tiết
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 );

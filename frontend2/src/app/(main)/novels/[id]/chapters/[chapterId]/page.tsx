@@ -9,6 +9,9 @@ import ChapterReader from "@/components/novel/ChapterReader";
 import SettingsUI from "@/components/settings/settingsUI";
 import { ReaderSettingsPayload } from "@/lib/api";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import ReportDialog from "@/components/report/ReportDialog";
+import { toast } from "@/lib/toast";
+import { useAuth } from "@/hook/useAuth";
 
 interface Chapter {
   _id: string;
@@ -23,6 +26,7 @@ interface Chapter {
 
 export default function ChapterPage() {
   const { id, chapterId } = useParams();
+  const { user } = useAuth();
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasPrev, setHasPrev] = useState(false);
@@ -40,6 +44,7 @@ export default function ChapterPage() {
   const readableRef = useRef(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [dialogWidth, setDialogWidth] = useState<number | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const localKey = "novel-app-reader-settings";
 
@@ -195,6 +200,14 @@ export default function ChapterPage() {
     readableRef.current = Boolean(readable);
   }, []);
 
+  const handleReport = () => {
+    if (!user) {
+      toast.error("Vui lòng đăng nhập để báo cáo");
+      return;
+    }
+    setReportOpen(true);
+  };
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -291,6 +304,7 @@ export default function ChapterPage() {
         onPrev={() => prevId && router.push(`/novels/${id}/chapters/${prevId}`)}
         onNext={() => nextId && router.push(`/novels/${id}/chapters/${nextId}`)}
         readerSettings={readerSettings}
+        onReport={handleReport}
       />
 
       {/* Floating scroll buttons: go to top / go to bottom */}
@@ -328,6 +342,13 @@ export default function ChapterPage() {
           </svg>
         </button>
       </div>
+      <ReportDialog
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        targetType="chapter"
+        targetId={normalizedChapterId}
+        targetTitle={chapter.title}
+      />
     </div>
   );
 }

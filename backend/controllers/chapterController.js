@@ -331,9 +331,26 @@ export const deleteChapter = async (req, res, next) => {
     }
 
     const novel = await ensureNovelExists(chapter.novel);
-    ensurePosterPermission(novel, req.user.userId, "xóa");
+    const requester = await User.findById(req.user.userId).select("role");
+    const isAdmin = requester?.role === "admin";
+    if (!isAdmin) {
+      ensurePosterPermission(novel, req.user.userId, "xóa");
+    }
 
     await Chapter.findByIdAndDelete(chapterId);
+
+    if (isAdmin && novel?.poster) {
+      const reason = (req.body?.reason || "").toString().trim();
+      const reasonText = reason ? ` Lý do: ${reason}` : "";
+      await Notification.create({
+        user: novel.poster,
+        title: "Chương bị xóa",
+        message: `Chương: ${chapter.title || ""} do bạn tạo đã bị xóa bởi admin.${reasonText}`,
+        type: "system",
+        relatedNovel: chapter.novel,
+        relatedChapter: chapter._id,
+      });
+    }
     res.json({ message: "Chapter đã được xóa" });
   } catch (error) {
     next(error);

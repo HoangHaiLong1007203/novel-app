@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Lock } from "lucide-react";
+import { Flag, Lock } from "lucide-react";
 
 interface ChapterItemProps {
   chapter: {
@@ -16,6 +16,7 @@ interface ChapterItemProps {
     isLocked?: boolean;
   };
   isActive?: boolean;
+  onReport?: (chapterId: string) => void;
 }
 
 interface NumberAvatarProps {
@@ -68,7 +69,7 @@ export function NumberAvatar({ number, className, isLocked }: NumberAvatarProps)
   );
 }
 
-export default function ChapterItem({ chapter, isActive }: ChapterItemProps) {
+export default function ChapterItem({ chapter, isActive, onReport }: ChapterItemProps) {
   const params = useParams();
   const novelId = Array.isArray(params?.id) ? params?.id[0] : params?.id;
 
@@ -78,14 +79,28 @@ export default function ChapterItem({ chapter, isActive }: ChapterItemProps) {
   return (
     <Link href={href} className="block">
       <Card className="mb-2 py-0 bg-background/80 hover:shadow-md transition-shadow">
-          <CardContent className={"flex gap-3 items-center py-2 px-2 " + (isActive ? "bg-primary/5" : "")}>
-            <NumberAvatar number={chapter.chapterNumber} isLocked={chapter.isLocked} />
+        <CardContent className={"flex gap-3 items-center py-2 px-2 " + (isActive ? "bg-primary/5" : "") }>
+          <NumberAvatar number={chapter.chapterNumber} isLocked={chapter.isLocked} />
           <div className="flex-1 min-w-0">
-              <div className={(isActive ? "font-bold text-primary" : "font-semibold") + " text-sm truncate"}>{chapter.title}</div>
+            <div className={(isActive ? "font-bold text-primary" : "font-semibold") + " text-sm truncate"}>{chapter.title}</div>
             {chapter.createdAt && (
               <div className="text-xs opacity-60 mt-1">{new Date(chapter.createdAt).toLocaleString()}</div>
             )}
           </div>
+          {onReport ? (
+            <button
+              type="button"
+              className="text-red-400 hover:text-red-500"
+              aria-label="Báo cáo chương"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onReport(chapter._id);
+              }}
+            >
+              <Flag size={16} />
+            </button>
+          ) : null}
         </CardContent>
       </Card>
     </Link>

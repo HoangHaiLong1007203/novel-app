@@ -9,6 +9,7 @@ import ChapterList from "@/components/novel/ChapterList";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast";
 import { toastApiError } from "@/lib/errors";
+import ReasonDialog from "@/components/ui/ReasonDialog";
 
 
 type NovelStatus = "còn tiếp" | "tạm ngưng" | "hoàn thành";
@@ -36,12 +37,16 @@ interface Chapter {
 export default function UpdateNovelPage() {
   const { id } = useParams();
   const router = useRouter();
+  const novelId = Array.isArray(id) ? id[0] : id;
   const { user, loading: authLoading } = useAuth();
   const [novel, setNovel] = useState<Novel | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [chaptersAsc] = useState(true);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteChapterOpen, setDeleteChapterOpen] = useState(false);
+  const [pendingDeleteChapterId, setPendingDeleteChapterId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -88,7 +93,7 @@ export default function UpdateNovelPage() {
     if (loading || authLoading) return;
     if (novel && user) {
       const posterId = novel.poster?._id || null;
-      const isAdmin = user.role === "admin";
+      const isAdmin = (user.role || "").toString().toLowerCase() === "admin";
       if (posterId && posterId !== user._id && !isAdmin) {
         // redirect back to novel page shortly
         setTimeout(() => router.replace(`/novels/${id}`), 1200);
@@ -99,14 +104,13 @@ export default function UpdateNovelPage() {
   if (loading) return <div className="min-h-[60vh] flex items-center justify-center">Đang tải...</div>;
   if (!novel) return <div className="min-h-[60vh] flex items-center justify-center">Không tìm thấy truyện.</div>;
 
-  const canDelete = Boolean(user && (user.role === "admin" || novel.poster?._id === user._id));
-  const handleDelete = async () => {
+  const isAdmin = (user?.role || "").toString().toLowerCase() === "admin";
+  const canDelete = Boolean(user && (isAdmin || novel.poster?._id === user._id));
+  const handleDelete = async (reason?: string) => {
     if (!canDelete || !id) return;
-    const confirmed = typeof window !== "undefined" && window.confirm("Bạn có chắc muốn xóa truyện này không?");
-    if (!confirmed) return;
     setDeleting(true);
     try {
-      await API.delete(`/api/novels/${id}`);
+      await API.delete(`/api/novels/${id}`, { data: reason ? { reason } : {} });
       toast.success("Truyện đã được xóa");
       router.back();
     } catch (err) {
@@ -129,7 +133,15 @@ export default function UpdateNovelPage() {
               <Button
                 type="button"
                 variant="destructive"
-                onClick={handleDelete}
+                onClick={async () => {
+                  if (isAdmin) {
+                    setDeleteOpen(true);
+                    return;
+                  }
+                  const confirmed = typeof window !== "undefined" && window.confirm("Bạn có chắc muốn xóa truyện này không?");
+                  if (!confirmed) return;
+                  await handleDelete();
+                }}
                 disabled={deleting}
               >
                 {deleting ? "Đang xóa..." : "Xóa truyện"}
@@ -162,9 +174,49 @@ export default function UpdateNovelPage() {
             onChangeChapters={(next: Chapter[]) => {
               setChapters(next);
             }}
+            onRequestDelete={async (chapterId: string) => {
+              if (!chapterId) return;
+              setPendingDeleteChapterId(chapterId);
+              setDeleteChapterOpen(true);
+            }}
           />
         </div>
       </div>
+      <ReasonDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Xóa truyện"
+        description="Bạn có thể nhập lý do (không bắt buộc)."
+        confirmText="Xóa"
+        onConfirm={async (reason) => {
+          await handleDelete(reason);
+        }}
+      />
+      <ReasonDialog
+        open={deleteChapterOpen}
+        onOpenChange={(open) => {
+          setDeleteChapterOpen(open);
+          if (!open) setPendingDeleteChapterId(null);
+        }}
+        title="Xóa chương"
+        description="Bạn có thể nhập lý do (không bắt buộc)."
+        confirmText="Xóa"
+        onConfirm={async (reason) => {
+          if (!pendingDeleteChapterId || !novelId) return;
+          try {
+            await API.delete(`/api/novels/${encodeURIComponent(novelId)}/chapters/${encodeURIComponent(pendingDeleteChapterId)}`, {
+              data: reason ? { reason } : {},
+            });
+            setChapters((prev) => prev.filter((c) => c._id !== pendingDeleteChapterId));
+            toast.success("Đã xóa chương");
+          } catch (e) {
+            toastApiError(e, "Xóa chương thất bại");
+            console.error("Failed to delete chapter", e);
+          } finally {
+            setPendingDeleteChapterId(null);
+          }
+        }}
+      />
     </div>
   );
 }

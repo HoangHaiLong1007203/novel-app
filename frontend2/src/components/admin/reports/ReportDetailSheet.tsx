@@ -36,6 +36,7 @@ interface ReportDetailSheetProps {
   priorityOptions?: AdminReportPriority[];
   onReportUpdate?: (report: AdminReportItem) => void;
   onActionCompleted?: () => void;
+  onNavigate?: (report: AdminReportItem) => void;
 }
 
 export function ReportDetailSheet({
@@ -46,6 +47,7 @@ export function ReportDetailSheet({
   priorityOptions,
   onReportUpdate,
   onActionCompleted,
+  onNavigate,
 }: ReportDetailSheetProps) {
   const [statusState, setStatusState] = useState<AdminReportStatus>("pending");
   const [priorityState, setPriorityState] = useState<AdminReportPriority>("medium");
@@ -162,7 +164,14 @@ export function ReportDetailSheet({
             ) : null}
 
             <section className="space-y-3 rounded-xl border p-4">
-              <p className="text-sm font-semibold">Hành động admin</p>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm font-semibold">Hành động admin</p>
+                {onNavigate ? (
+                  <Button variant="outline" size="sm" onClick={() => onNavigate(report)}>
+                    Xem đối tượng
+                  </Button>
+                ) : null}
+              </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="flex flex-col gap-1">
                   <Label className="text-xs uppercase text-muted-foreground">Trạng thái</Label>

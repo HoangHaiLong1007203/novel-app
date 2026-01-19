@@ -33,6 +33,7 @@ type CommentType = {
 
 type BaseHandlers = {
   currentUserId?: string | null;
+  isAdmin?: boolean;
   onReply?: (id: string) => void;
   onReport?: (id: string) => void;
   onDelete?: (id: string) => void;
@@ -114,7 +115,7 @@ export default function ReviewCommentPane(props: Props & { incomingReply?: Incom
   // Reply submission is handled by the global composer (RatingComment) in the page.
 
     if (props.mode === "review") {
-    const { items, currentUserId, onReport, onDelete } = props as ReviewProps;
+    const { items, currentUserId, isAdmin, onReport, onDelete } = props as ReviewProps;
     // If focusedId is set, show only the focused item and its replies
     if (focusedId) {
       const focusedItem = items.find((it) => it._id === focusedId);
@@ -141,6 +142,7 @@ export default function ReviewCommentPane(props: Props & { incomingReply?: Incom
                   onReply={handleFocusToggle}
                   onReport={onReport}
                   onDelete={onDelete}
+                  canDelete={Boolean(isAdmin || (currentUserId && focusedItem.user?._id === currentUserId))}
                 />
 
                 <div className="ml-10 mt-1 space-y-1">
@@ -162,9 +164,11 @@ export default function ReviewCommentPane(props: Props & { incomingReply?: Incom
                       }}
                       currentUserId={currentUserId}
                       onDelete={(replyId: string) => {
+                        onDelete?.(replyId);
                         setFocusedReplies((prev) => prev.filter((x) => x._id !== replyId));
                         props.onChildDeleted?.(focusedId as string, replyId);
                       }}
+                      canDelete={Boolean(isAdmin || (currentUserId && r.user?._id === currentUserId))}
                     />
                   )) : <div className="text-sm opacity-70 ml-2">Không có phản hồi.</div>}
                 </div>
@@ -200,6 +204,7 @@ export default function ReviewCommentPane(props: Props & { incomingReply?: Incom
                   onReply={handleFocusToggle}
                   onReport={onReport}
                   onDelete={onDelete}
+                  canDelete={Boolean(isAdmin || (currentUserId && it.user?._id === currentUserId))}
                 />
               </div>
             ))
@@ -212,7 +217,7 @@ export default function ReviewCommentPane(props: Props & { incomingReply?: Incom
   }
 
   // comment mode
-  const { items, currentUserId, onReport, onDelete } = props as CommentProps;
+  const { items, currentUserId, isAdmin, onReport, onDelete } = props as CommentProps;
   // Build parent->replies map and top-level list from provided items
   const repliesMap: Record<string, CommentType[]> = {};
   const topLevelComments: CommentType[] = [];
@@ -240,6 +245,7 @@ export default function ReviewCommentPane(props: Props & { incomingReply?: Incom
                 onReply={handleFocusToggle}
                 onReport={onReport}
                 onDelete={onDelete}
+                canDelete={Boolean(isAdmin || (currentUserId && focusedItem.user?._id === currentUserId))}
               />
 
               <div className="ml-10 mt-1 space-y-1">
@@ -251,10 +257,12 @@ export default function ReviewCommentPane(props: Props & { incomingReply?: Incom
                     item={{ _id: r._id, user: r.user, content: r.content, createdAt: r.createdAt, isLikedByCurrentUser: r.isLikedByUser ?? r.isLikedByCurrentUser }}
                     currentUserId={currentUserId}
                     onDelete={(replyId: string) => {
+                      onDelete?.(replyId);
                       // remove locally and notify parent
                       setFocusedReplies((prev) => prev.filter((x) => x._id !== replyId));
                       props.onChildDeleted?.(focusedItem._id, replyId);
                     }}
+                    canDelete={Boolean(isAdmin || (currentUserId && r.user?._id === currentUserId))}
                   />
                 )) : <div className="text-sm opacity-70 ml-2">Không có phản hồi.</div>}
               </div>
@@ -280,6 +288,7 @@ export default function ReviewCommentPane(props: Props & { incomingReply?: Incom
                 onReply={handleFocusToggle}
                 onReport={onReport}
                 onDelete={onDelete}
+                canDelete={Boolean(isAdmin || (currentUserId && it.user?._id === currentUserId))}
               />
             </div>
           ))

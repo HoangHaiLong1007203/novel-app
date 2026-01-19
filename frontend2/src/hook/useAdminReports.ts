@@ -15,7 +15,7 @@ import type {
 const DEFAULT_QUERY: AdminReportQuery = {
   page: 1,
   limit: 20,
-  status: "pending",
+  status: "all",
 };
 
 type DatePreset = "all" | "7d" | "30d" | "90d";

@@ -15,6 +15,7 @@ interface Props {
   hasNext?: boolean;
   onPrev?: () => void;
   onNext?: () => void;
+  onReport?: () => void;
 }
 
 export default function ChapterFooterActions({
@@ -22,6 +23,7 @@ export default function ChapterFooterActions({
   hasNext = false,
   onPrev,
   onNext,
+  onReport,
   readerSettings,
 }: Props & { readerSettings?: import("@/lib/api").ReaderSettingsPayload }) {
   return (
@@ -54,7 +56,11 @@ export default function ChapterFooterActions({
         </Button>
 
         {/* Báo cáo */}
-        <Button variant="ghost" className="flex flex-col items-center justify-center gap-1 py-3 px-2 text-xs sm:text-sm min-h-[64px]">
+        <Button
+          variant="ghost"
+          className="flex flex-col items-center justify-center gap-1 py-3 px-2 text-xs sm:text-sm min-h-[64px]"
+          onClick={onReport}
+        >
           <Flag className="h-5 w-5" />
           <span className="text-center truncate w-full">Báo cáo</span>
         </Button>

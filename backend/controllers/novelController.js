@@ -97,20 +97,23 @@ export const getNovels = async (req, res, next) => {
     };
 
     // continue to build `filter` and pipeline below
-      if (poster) {
-        filter.poster = poster;
-      }
-      if (status) {
-        filter.status = { $in: status.split(",") };
-      }
-      if (type) {
-        filter.type = { $in: type.split(",") };
-      }
+    if (poster) {
+      filter.poster = poster;
+    }
+    if (status) {
+      filter.status = { $in: status.split(",") };
+    }
+    if (type) {
+      filter.type = { $in: type.split(",") };
+    }
+    if (genres) {
+      filter.genres = { $in: genres.split(",") };
+    }
 
-      const requiresAggregate = ["reviews_desc", "comments_desc"].includes(sortBy);
+    const requiresAggregate = ["reviews_desc", "comments_desc"].includes(sortBy);
 
-      // Use simple query when no chapter-range filters are provided and no aggregate-only sort is requested
-        if (chapterMin === undefined && chapterMax === undefined && !requiresAggregate) {
+    // Use simple query when no chapter-range filters are provided and no aggregate-only sort is requested
+    if (chapterMin === undefined && chapterMax === undefined && !requiresAggregate) {
         let query = Novel.find(filter).populate("poster", "username");
 
         // Pagination
@@ -401,6 +404,18 @@ export const deleteNovel = async (req, res, next) => {
     novel.isDeleted = true;
     novel.deletedAt = new Date();
     await novel.save();
+
+    if (isAdmin && novel.poster) {
+      const reason = (req.body?.reason || "").toString().trim();
+      const reasonText = reason ? ` Lý do: ${reason}` : "";
+      await Notification.create({
+        user: novel.poster,
+        title: "Truyện bị xóa",
+        message: `Truyện: ${novel.title} do bạn tạo đã bị xóa bởi admin.${reasonText}`,
+        type: "system",
+        relatedNovel: novel._id,
+      });
+    }
 
     res.json({ message: "Truyện đã được xóa" });
   } catch (error) {

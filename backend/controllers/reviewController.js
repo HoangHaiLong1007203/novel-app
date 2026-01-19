@@ -3,6 +3,7 @@ import Novel from "../models/Novel.js";
 import User from "../models/User.js";
 import ReadingProgress from "../models/ReadingProgress.js";
 import Chapter from "../models/Chapter.js";
+import Notification from "../models/Notification.js";
 import AppError from "../middlewares/errorHandler.js";
 
 // Create a new review
@@ -136,6 +137,33 @@ export const getReviewsByNovel = async (req, res, next) => {
   }
 };
 
+// Get a single review by id
+export const getReviewById = async (req, res, next) => {
+  try {
+    const { reviewId } = req.params;
+    const userId = req.user?.userId;
+
+    const review = await Review.findById(reviewId)
+      .populate('user', 'username avatarUrl')
+      .lean();
+
+    if (!review || review.isDeleted) {
+      return next(new AppError("Đánh giá không tồn tại", 404));
+    }
+
+    if (userId) {
+      const reviewDoc = await Review.findById(reviewId);
+      if (reviewDoc) {
+        review.isLikedByCurrentUser = reviewDoc.isLikedByUser(userId);
+      }
+    }
+
+    res.json({ review });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Reply to a review
 export const replyToReview = async (req, res, next) => {
   try {
@@ -259,12 +287,27 @@ export const deleteReview = async (req, res, next) => {
       return next(new AppError("Đánh giá không tồn tại", 404));
     }
 
-    if (review.user.toString() !== userId) {
+    const user = await User.findById(userId).select("role");
+    const isAdmin = user?.role === "admin";
+    const isOwner = review.user.toString() === userId;
+    if (!isOwner && !isAdmin) {
       return next(new AppError("Bạn không có quyền xóa đánh giá này", 403));
     }
 
     await review.softDelete();
     await review.save();
+
+    if (isAdmin) {
+      const reason = (req.body?.reason || "").toString().trim();
+      const reasonText = reason ? ` Lý do: ${reason}` : "";
+      await Notification.create({
+        user: review.user,
+        title: "Đánh giá bị xóa",
+        message: `Một đánh giá của bạn đã bị xóa bởi admin.${reasonText}`,
+        type: "system",
+        relatedNovel: review.novel,
+      });
+    }
 
     // Update novel's average rating
     await updateNovelAverageRating(review.novel);

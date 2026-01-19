@@ -11,9 +11,10 @@ interface CommentItemProps {
   onReply?: (commentId: string) => void;
   onReport?: (commentId: string) => void;
   onDelete?: (commentId: string) => void;
+  canDelete?: boolean;
 }
 
-export default function CommentItem({ comment, currentUserId, onReply, onReport, onDelete }: CommentItemProps) {
+export default function CommentItem({ comment, currentUserId, onReply, onReport, onDelete, canDelete }: CommentItemProps) {
   return (
     <CommentOrReviewItem
       mode="comment"
@@ -28,6 +29,7 @@ export default function CommentItem({ comment, currentUserId, onReply, onReport,
       onReply={onReply}
       onReport={onReport}
       onDelete={onDelete}
+      canDelete={canDelete}
     />
   );
 }

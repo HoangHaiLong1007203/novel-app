@@ -1,10 +1,13 @@
 # novel-app
 
-Ứng dụng đọc/đăng truyện gồm:
-- **Backend**: backend/ (Node.js ESM + Express + MongoDB/Mongoose)
-- **Frontend**: frontend2/ (Next.js app-dir + TypeScript
+## Giới thiệu
 
-Frontend gọi REST API dưới /api/* (mặc định backend ở http://localhost:5000).
+**Tên đề tài**: Ứng dụng đọc/đăng truyện (novel-app)
+
+**Công nghệ**:
+- Backend: Node.js (ESM), Express, MongoDB/Mongoose
+- Frontend: Next.js (app-dir), TypeScript, Capacitor
+
 
 ---
 
@@ -90,6 +93,43 @@ Mở http://localhost:3000 để truy cập trang web
 
 ## Ghi chú thêm (tuỳ chọn)
 
-- Storage nội dung chương: cấu hình MINIO_* hoặc R2_* trong backend/.env.
-- Upload ảnh: cấu hình CLOUDINARY_* trong backend/.env.
-- Thanh toán: cấu hình STRIPE_* và VNPAY_* trong backend/.env, NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY trong frontend2/.env.local.
+- nếu backend chạy ở port khác 5000 thì phải sửa port của biến môi trường trong 2 file .env để có thể hoạt động.
+
+BASE_URL=https://localhost:5000 trong backend/.env 
+NEXT_PUBLIC_API_URL=http://localhost:5000  trong frontend2/.env.local.
+
+- nếu frontend chạy ở port khác 3000 thì phải sửa port của biến môi trường trong 2 file .env để có thể hoạt động.
+FRONTEND_URL=http://localhost:3000  trong backend/.env 
+NEXT_PUBLIC_FRONTEND_URL=http://localhost:3000  trong frontend2/.env.local.
+
+---
+
+## Demo — Screenshots
+
+Bạn có thể thêm ảnh màn hình (screenshots) vào README để demo giao diện.
+
+Hướng dẫn ngắn:
+
+- Tạo thư mục trong repo để chứa ảnh, ví dụ `docs/screenshots/` hoặc `public/screenshots/`.
+- Sao chép file ảnh vào thư mục đó (ví dụ `docs/screenshots/home.png`).
+- Thêm thẻ Markdown vào README để hiển thị ảnh, ví dụ:
+
+```markdown
+![Home screen](docs/screenshots/home.png)
+```
+
+- Trong VSCode: copy ảnh vào thư mục, mở `README.md`, nhập `![](` rồi kéo thả ảnh vào editor — VSCode sẽ chèn đường dẫn tương đối.
+- Commit và push thay đổi:
+
+```powershell
+git add docs/screenshots/home.png README.md
+git commit -m "Add demo screenshot"
+git push
+```
+
+Lưu ý ngắn:
+- GitHub/Viewer sẽ hiển thị ảnh nếu đường dẫn tương đối chính xác.
+- Nên tối ưu ảnh (kích thước < ~1MB) để tránh repo lớn.
+
+Muốn tôi thêm một ảnh demo mẫu vào repo không? Nếu có, upload ảnh lên đây hoặc cho phép tôi tạo một ảnh placeholder để mình thêm giúp.
+

@@ -2,13 +2,14 @@ import express from "express";
 import {
   createReview,
   getReviewsByNovel,
+  getReviewById,
   replyToReview,
   likeReview,
   updateReview,
   deleteReview,
   getReviewReplies
 } from "../controllers/reviewController.js";
-import authMiddleware from "../middlewares/authMiddleware.js";
+import authMiddleware, { optionalAuth } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
@@ -18,6 +19,9 @@ router.get("/novel/:novelId", getReviewsByNovel);
 
 // Get replies for a specific review (public)
 router.get("/:reviewId/replies", getReviewReplies);
+
+// Get review detail (public)
+router.get("/:reviewId", optionalAuth, getReviewById);
 
 // The following routes require authentication
 router.use(authMiddleware);

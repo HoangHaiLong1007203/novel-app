@@ -32,10 +32,10 @@ type Props = {
   onReply?: (id: string) => void;
   onReport?: (id: string) => void;
   onDelete?: (id: string) => void;
+  canDelete?: boolean;
 };
 
-export default function CommentOrReviewItem({ mode, item, currentUserId, onReply, onReport, onDelete }: Props) {
-  const isOwn = currentUserId && item.user && item.user._id === currentUserId;
+export default function CommentOrReviewItem({ mode, item, currentUserId, onReply, onReport, onDelete, canDelete }: Props) {
   const initialLikes = Array.isArray(item.likes) ? item.likes.length : item.likesCount ?? 0;
   const initialIsLiked = Boolean(
     item.isLikedByCurrentUser ??
@@ -89,16 +89,7 @@ export default function CommentOrReviewItem({ mode, item, currentUserId, onReply
   };
 
   const handleDelete = async () => {
-    try {
-      if (mode === "review") {
-        await API.delete(`/api/reviews/${item._id}`);
-      } else {
-        await API.delete(`/api/comments/${item._id}`);
-      }
-      onDelete?.(item._id);
-    } catch (e) {
-      console.error("Delete failed", e);
-    }
+    onDelete?.(item._id);
   };
 
   const handleToggleReplies = async () => {
@@ -119,19 +110,21 @@ export default function CommentOrReviewItem({ mode, item, currentUserId, onReply
   }, [item, currentUserId]);
 
   return (
-    <Card className="mb-2 bg-background/80 relative">
+    <Card id={`report-target-${item._id}`} className="mb-2 bg-background/80 relative">
       <CardContent className="flex flex-col gap-3 py-4 px-2">
 
         {/* Top-right actions: report + delete */}
         <div className="absolute top-2 right-2 flex gap-2">
-          <button className="text-sm text-red-400" onClick={() => onReport?.(item._id)} aria-label="Báo cáo">
-            <FaFlag />
-          </button>
-          {isOwn && (
+          {onReport ? (
+            <button className="text-sm text-red-400" onClick={() => onReport?.(item._id)} aria-label="Báo cáo">
+              <FaFlag />
+            </button>
+          ) : null}
+          {canDelete ? (
             <button className="text-sm text-red-600" onClick={handleDelete} aria-label="Xóa">
               <FaTrash />
             </button>
-          )}
+          ) : null}
         </div>
 
         <div className="flex gap-3 items-start">

@@ -194,6 +194,19 @@ export async function confirmTopup(payload: {
   };
 }
 
+export type ReportTargetType = "novel" | "chapter" | "comment" | "review" | "user" | "system";
+
+export async function createReport(payload: {
+  targetType: ReportTargetType;
+  targetId: string;
+  reason: string;
+  targetTitle?: string;
+  targetSnippet?: string;
+}) {
+  const res = await API.post("/api/reports", payload);
+  return res.data;
+}
+
 export async function fetchAdminTransactions(params: AdminTransactionQuery = {}) {
   const res = await API.get<AdminTransactionsResponse>("/api/payments/transactions", {
     params,
