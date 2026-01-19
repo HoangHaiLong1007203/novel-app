@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { CreditCard, ShieldCheck, Coins, BellRing, History, Unlock, UserRound, Loader2 } from "lucide-react";
+import { CreditCard, ShieldCheck, Coins, BellRing, History, Unlock, UserRound, Loader2, Eye, EyeOff } from "lucide-react";
 
 import { useAuth } from "@/hook/useAuth";
 import { API } from "@/lib/api";
@@ -83,6 +83,8 @@ export default function ProfilePage() {
   });
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -340,27 +342,53 @@ export default function ProfilePage() {
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor="newPassword">Mật khẩu mới</Label>
-                        <Input
-                          id="newPassword"
-                          name="newPassword"
-                          type="password"
-                          value={passwordForm.newPassword}
-                          onChange={handlePasswordChange}
-                          autoComplete="new-password"
-                          placeholder="Tối thiểu 6 ký tự"
-                        />
+                        <div className="relative">
+                          <Input
+                            id="newPassword"
+                            name="newPassword"
+                            type={showNewPassword ? "text" : "password"}
+                            value={passwordForm.newPassword}
+                            onChange={handlePasswordChange}
+                            autoComplete="new-password"
+                            placeholder="Tối thiểu 6 ký tự"
+                            className="pr-10"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-1 top-1/2 -translate-y-1/2"
+                            onClick={() => setShowNewPassword((prev) => !prev)}
+                            aria-label={showNewPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                          >
+                            {showNewPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                          </Button>
+                        </div>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="confirmPassword">Nhập lại mật khẩu</Label>
-                        <Input
-                          id="confirmPassword"
-                          name="confirmPassword"
-                          type="password"
-                          value={passwordForm.confirmPassword}
-                          onChange={handlePasswordChange}
-                          autoComplete="new-password"
-                          placeholder="Nhập lại để xác nhận"
-                        />
+                        <div className="relative">
+                          <Input
+                            id="confirmPassword"
+                            name="confirmPassword"
+                            type={showConfirmPassword ? "text" : "password"}
+                            value={passwordForm.confirmPassword}
+                            onChange={handlePasswordChange}
+                            autoComplete="new-password"
+                            placeholder="Nhập lại để xác nhận"
+                            className="pr-10"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-1 top-1/2 -translate-y-1/2"
+                            onClick={() => setShowConfirmPassword((prev) => !prev)}
+                            aria-label={showConfirmPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                          >
+                            {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                     <p className="text-sm text-muted-foreground">Mật khẩu cần 6-128 ký tự, bao gồm ít nhất một chữ cái và một chữ số, không khoảng trắng.</p>

@@ -60,13 +60,13 @@ Mở http://localhost:3000 để truy cập trang web
 
 ## 5) Tài khoản test
 
-- **Tài khoản user thường**: (điền theo file bạn nhận)
-  - Email: <user_email>
-  - Password: <user_password>
+- **Tài khoản user thường**: 
+  - Email: testuser@example.com
+  - Password: password123
 
-- **Tài khoản admin**: (điền theo file bạn nhận)
-  - Email: <admin_email>
-  - Password: <admin_password>
+- **Tài khoản admin**: 
+  - Email: admin@example.com
+  - Password: adminpassword
 
 ---
 

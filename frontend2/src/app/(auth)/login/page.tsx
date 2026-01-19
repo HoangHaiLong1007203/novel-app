@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, Suspense, useEffect, useCallback } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { API } from "@/lib/api";
 import { Input, Button } from "@/components/ui";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -32,6 +33,7 @@ function LoginForm() {
   const { setUser } = useAuth();
 
   const [form, setForm] = useState({ email: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -186,12 +188,25 @@ function LoginForm() {
           value={form.email}
           onChange={(e) => setForm({ ...form, email: e.target.value })}
         />
-        <Input
-          type="password"
-          placeholder="Mật khẩu"
-          value={form.password}
-          onChange={(e) => setForm({ ...form, password: e.target.value })}
-        />
+        <div className="relative">
+          <Input
+            type={showPassword ? "text" : "password"}
+            placeholder="Mật khẩu"
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+            className="pr-10"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="absolute right-1 top-1/2 -translate-y-1/2"
+            onClick={() => setShowPassword((prev) => !prev)}
+            aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+          >
+            {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          </Button>
+        </div>
 
         
         <Button type="submit" className="w-full">
