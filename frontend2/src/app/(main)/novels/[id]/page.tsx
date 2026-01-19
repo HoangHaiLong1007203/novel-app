@@ -19,6 +19,7 @@ import NovelStats from "@/components/novel/NovelStats";
 import NovelCarousel from "@/components/novel/NovelCarousel";
 import NovelTile from "@/components/novel/NovelTile";
 import { API, addBookmark, getUserBookmarks, removeBookmark } from "@/lib/api";
+import { toast } from "@/lib/toast";
 
 interface Novel {
   _id: string;
@@ -74,6 +75,7 @@ export default function NovelDetailPage() {
   const [lastReadChapterId, setLastReadChapterId] = useState<string | null>(null);
   const [chaptersAsc] = useState(true);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewTotal, setReviewTotal] = useState(0);
   const [comments, setComments] = useState<Comment[]>([]);
   const [authorNovels, setAuthorNovels] = useState<Novel[]>([]);
   const [posterNovels, setPosterNovels] = useState<Novel[]>([]);
@@ -123,16 +125,20 @@ export default function NovelDetailPage() {
         console.log("[debug] fetched novel:", res.data?.novel);
         const chaptersRes = await API.get(`/api/novels/${id}/chapters?sort=asc`);
         setChapters(chaptersRes.data?.chapters || []);
-        // Fetch reviews và reading progress nếu có token
+        // Fetch reviews (public) so rating is available without login
+        try {
+          const reviewsRes = await API.get(`/api/reviews/novel/${id}`);
+          setReviews(reviewsRes.data?.reviews || []);
+          const totalReviews = reviewsRes.data?.pagination?.totalReviews ?? reviewsRes.data?.reviews?.length ?? 0;
+          setReviewTotal(totalReviews);
+        } catch {
+          setReviews([]);
+          setReviewTotal(0);
+        }
+
+        // Try fetching detailed reading progress to know last-read chapter (auth only)
         const accessToken = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
         if (accessToken && accessToken !== 'undefined' && accessToken !== 'null') {
-          try {
-            const reviewsRes = await API.get(`/api/reviews/novel/${id}`);
-            setReviews(reviewsRes.data?.reviews || []);
-          } catch {
-            setReviews([]);
-          }
-          // Try fetching detailed reading progress to know last-read chapter
           try {
             const rpRes = await API.get(`/api/reading-progress/${id}`);
             const rp = rpRes.data?.readingProgress;
@@ -143,8 +149,6 @@ export default function NovelDetailPage() {
           } catch {
             setLastReadChapterId(null);
           }
-        } else {
-          setReviews([]);
         }
         // Fetch comments (route public)
         const commentsRes = await API.get(`/api/comments/novel/${id}`);
@@ -198,9 +202,12 @@ export default function NovelDetailPage() {
         const reviewsRes = await API.get(`/api/reviews/novel/${id}`);
         if (!mounted) return;
         setReviews(reviewsRes.data?.reviews || []);
+        const totalReviews = reviewsRes.data?.pagination?.totalReviews ?? reviewsRes.data?.reviews?.length ?? 0;
+        setReviewTotal(totalReviews);
       } catch {
         if (!mounted) return;
         setReviews((prev) => prev || []);
+        setReviewTotal((prev) => prev || 0);
       }
 
       try {
@@ -248,7 +255,7 @@ export default function NovelDetailPage() {
   const computedAvg = ratingsFromState.length > 0 ? (ratingsFromState.reduce((s, r) => s + (r.rating || 0), 0) / ratingsFromState.length) : null;
   const avgRating = novel?.averageRating ?? computedAvg ?? 0;
   const ratingCountFromState = ratingsFromState.length;
-  const ratingCount = ratingCountFromState > 0 ? ratingCountFromState : (novel?.reviewsCount ?? novel?.ratingCount ?? 0);
+  const ratingCount = reviewTotal > 0 ? reviewTotal : (ratingCountFromState > 0 ? ratingCountFromState : (novel?.reviewsCount ?? novel?.ratingCount ?? 0));
 
   const renderStars = (rating: number) => {
     const r = Math.round(rating || 0);

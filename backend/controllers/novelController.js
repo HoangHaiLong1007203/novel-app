@@ -77,6 +77,24 @@ export const getNovels = async (req, res, next) => {
   try {
     const { page, limit, genres, author, poster, status, type, chapterMin, chapterMax, sortBy } = req.query;
     const filter = {};
+    filter.isDeleted = { $ne: true };
+
+    const resolveSortStage = (value) => {
+      switch (value) {
+        case "updated_recent":
+          return { updatedAt: -1, _id: 1 };
+        case "views_desc":
+          return { views: -1, _id: 1 };
+        case "comments_desc":
+          return { commentsCount: -1, _id: 1 };
+        case "reviews_desc":
+          return { averageRating: -1, _id: 1 };
+        case "completed_recent":
+          return { updatedAt: -1, _id: 1 };
+        default:
+          return { createdAt: -1, _id: 1 };
+      }
+    };
 
     // continue to build `filter` and pipeline below
       if (poster) {
@@ -89,8 +107,10 @@ export const getNovels = async (req, res, next) => {
         filter.type = { $in: type.split(",") };
       }
 
-      // Use simple query when no chapter-range filters are provided
-      if (chapterMin === undefined && chapterMax === undefined) {
+      const requiresAggregate = ["reviews_desc", "comments_desc"].includes(sortBy);
+
+      // Use simple query when no chapter-range filters are provided and no aggregate-only sort is requested
+        if (chapterMin === undefined && chapterMax === undefined && !requiresAggregate) {
         let query = Novel.find(filter).populate("poster", "username");
 
         // Pagination
@@ -99,7 +119,7 @@ export const getNovels = async (req, res, next) => {
           query = query.skip(skip).limit(parseInt(limit));
         }
 
-        const novels = await query.sort({ createdAt: -1 });
+        const novels = await query.sort(resolveSortStage(sortBy));
 
         // If an `author` query was provided, also match by poster.username.
         // Use normalized comparison to handle case/diacritics differences between
@@ -215,8 +235,7 @@ export const getNovels = async (req, res, next) => {
       },
       { $addFields: { averageRating: { $ifNull: [{ $round: [{ $arrayElemAt: ["$avgRating.avgRating", 0] }, 1] }, 0] } } },
       { $lookup: { from: "users", localField: "poster", foreignField: "_id", as: "poster" } },
-      { $unwind: { path: "$poster", preserveNullAndEmptyArrays: true } },
-      { $project: { chapters: 0, reviewCount: 0, commentCount: 0, avgRating: 0 } }
+      { $unwind: { path: "$poster", preserveNullAndEmptyArrays: true } }
     );
 
     // Determine sort stage
@@ -250,6 +269,8 @@ export const getNovels = async (req, res, next) => {
       const skip = (parseInt(page) - 1) * parseInt(limit);
       pipeline.push({ $skip: skip }, { $limit: parseInt(limit) });
     }
+
+    pipeline.push({ $project: { chapters: 0, reviewCount: 0, commentCount: 0, avgRating: 0 } });
 
     const novelsAgg = await Novel.aggregate(pipeline);
 
@@ -318,7 +339,7 @@ export const getNovels = async (req, res, next) => {
 // Lấy chi tiết truyện
 export const getNovelById = async (req, res, next) => {
   try {
-    const novel = await Novel.findById(req.params.id)
+    const novel = await Novel.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
       .populate("poster", "username");
 
     if (!novel) {
@@ -336,7 +357,7 @@ export const updateNovel = async (req, res, next) => {
   try {
     const novel = await Novel.findById(req.params.id);
 
-    if (!novel) {
+    if (!novel || novel.isDeleted) {
       return next(new AppError("Truyện không tồn tại", 404));
     }
 
@@ -367,26 +388,19 @@ export const deleteNovel = async (req, res, next) => {
   try {
     const novel = await Novel.findById(req.params.id);
 
-    if (!novel) {
+    if (!novel || novel.isDeleted) {
       return next(new AppError("Truyện không tồn tại", 404));
     }
 
-    if (novel.poster.toString() !== req.user.userId) {
+    const user = await User.findById(req.user.userId).select("role");
+    const isAdmin = user?.role === "admin";
+    if (novel.poster.toString() !== req.user.userId && !isAdmin) {
       return next(new AppError("Bạn không có quyền xóa truyện này", 403));
     }
 
-    // Delete related documents to avoid orphan data
-    await Promise.all([
-      Chapter.deleteMany({ novel: novel._id }),
-      Review.deleteMany({ novel: novel._id }),
-      Comment.deleteMany({ novel: novel._id }),
-      Bookmark.deleteMany({ novel: novel._id }),
-      ReadingProgress.deleteMany({ novel: novel._id }),
-      Notification.deleteMany({ novel: novel._id }),
-      Transaction.deleteMany({ novel: novel._id }),
-    ]);
-
-    await Novel.findByIdAndDelete(novel._id);
+    novel.isDeleted = true;
+    novel.deletedAt = new Date();
+    await novel.save();
 
     res.json({ message: "Truyện đã được xóa" });
   } catch (error) {
@@ -415,7 +429,7 @@ export const searchNovels = async (req, res, next) => {
     // then normalized matches for diacritic-insensitive fuzzy matches.
     // Build optional filter from query params (so search can be combined with filters)
     const { genres, status, type, chapterMin, chapterMax } = req.query;
-    const filter = {};
+    const filter = { isDeleted: { $ne: true } };
     if (genres) filter.genres = { $in: String(genres).split(",") };
     if (status) filter.status = { $in: String(status).split(",") };
     if (type) filter.type = { $in: String(type).split(",") };

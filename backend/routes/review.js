@@ -16,6 +16,9 @@ const router = express.Router();
 // Get reviews for a novel (public)
 router.get("/novel/:novelId", getReviewsByNovel);
 
+// Get replies for a specific review (public)
+router.get("/:reviewId/replies", getReviewReplies);
+
 // The following routes require authentication
 router.use(authMiddleware);
 
@@ -33,8 +36,5 @@ router.put("/:reviewId", updateReview);
 
 // Delete own review
 router.delete("/:reviewId", deleteReview);
-
-// Get replies for a specific review
-router.get("/:reviewId/replies", getReviewReplies);
 
 export default router;

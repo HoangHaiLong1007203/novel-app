@@ -23,7 +23,11 @@ async function fetchNovels(sortBy: string, limit: number = 7) {
 
   // Prefer explicit env var; for server-side rendering fall back to backend default.
   const base = process.env.NEXT_PUBLIC_API_URL || (isServer ? `http://localhost:5000` : "");
-  const url = `${base}/api/novels?sortBy=${sortBy}&limit=${limit}`;
+  const params = new URLSearchParams({ sortBy, limit: String(limit) });
+  if (sortBy === "completed_recent") {
+    params.set("status", "hoàn thành");
+  }
+  const url = `${base}/api/novels?${params.toString()}`;
   const res = await fetch(url, { cache: "no-store" });
   const { novels }: { novels: Novel[] } = await res.json();
   return novels;
@@ -39,13 +43,13 @@ export default async function NovelsPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 p-4">
-      <NovelCarousel title="Nhiều lượt đọc" novels={viewsNovels} moreHref="/novels?sortBy=views_desc" />
+      <NovelCarousel title="Nhiều lượt đọc" novels={viewsNovels} moreHref="/search?sortBy=views_desc" />
 
-      <NovelCarousel title="Nhiều review" novels={reviewsNovels} moreHref="/novels?sortBy=reviews_desc" />
+      <NovelCarousel title="Nhiều review" novels={reviewsNovels} moreHref="/search?sortBy=reviews_desc" />
 
-      <NovelCarousel title="Mới hoàn thành" novels={completedNovels} moreHref="/novels?sortBy=completed_recent" />
+      <NovelCarousel title="Mới hoàn thành" novels={completedNovels} moreHref="/search?sortBy=completed_recent" />
 
-      <NovelCarousel title="Mới cập nhật" novels={updatedNovels} moreHref="/novels?sortBy=updated_recent" />
+      <NovelCarousel title="Mới cập nhật" novels={updatedNovels} moreHref="/search?sortBy=updated_recent" />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { FaFlag, FaTrash, FaStar, FaRegHeart, FaHeart, FaComment } from "react-icons/fa";
 import { API } from "@/lib/api";
+import { toast } from "@/lib/toast";
 import { useState, useEffect } from "react";
 
 type UserRef = { username: string; avatarUrl?: string; _id?: string };
@@ -50,6 +51,10 @@ export default function CommentOrReviewItem({ mode, item, currentUserId, onReply
   const shouldShowToggle = Boolean(item.content) && (((item.content || "").match(/\n/g) || []).length >= 3 || (item.content || "").length > 300);
 
   const handleLike = async () => {
+    if (!currentUserId) {
+      toast.error("Vui lòng đăng nhập để like");
+      return;
+    }
     if (isLiking) return;
     setIsLiking(true);
     try {

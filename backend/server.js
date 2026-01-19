@@ -102,22 +102,36 @@ connectDB().then(() => {
 
   const haveCerts = Boolean(certPath && keyPath);
 
-  if (useHttpsEnv || haveCerts) {
+  if (useHttpsEnv) {
     if (!haveCerts) {
-      console.warn("HTTPS requested but certificates not found in candidate locations:\n", candidateCertPaths, candidateKeyPaths);
-      console.warn("Falling back to HTTP. To enable HTTPS, set SSL_CERT_PATH/SSL_KEY_PATH or place cert/key at project root.");
+      console.warn(
+        "HTTPS requested (USE_HTTPS=true) but certificates not found in candidate locations:\n",
+        candidateCertPaths,
+        candidateKeyPaths
+      );
+      console.warn(
+        "Falling back to HTTP. To enable HTTPS, set SSL_CERT_PATH/SSL_KEY_PATH or place cert/key at project root."
+      );
     } else {
       try {
         const cert = fs.readFileSync(certPath);
         const key = fs.readFileSync(keyPath);
         const server = https.createServer({ key, cert }, app);
-        server.listen(PORT, () => console.log(`🚀 HTTPS server running at https://localhost:${PORT} (cert: ${certPath}, key: ${keyPath})`));
+        server.listen(PORT, () =>
+          console.log(
+            `🚀 HTTPS server running at https://localhost:${PORT} (cert: ${certPath}, key: ${keyPath})`
+          )
+        );
         return;
       } catch (err) {
         console.error("Failed to start HTTPS server:", err);
         console.warn("Falling back to HTTP.");
       }
     }
+  } else if (haveCerts) {
+    console.log(
+      `ℹ️  Certificates found but USE_HTTPS=false; starting HTTP instead (cert: ${certPath}, key: ${keyPath}).`
+    );
   }
 
   const host = process.env.HOST || "localhost";

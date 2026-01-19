@@ -235,12 +235,22 @@ export const changePassword = async (userId, newPassword) => {
   }
   // Hash password
   const hashedPassword = await bcrypt.hash(newPassword, 10);
-  // Update password
-  const updatedUser = await User.findByIdAndUpdate(userId, { password: hashedPassword }, { new: true }).select("-password");
-  if (!updatedUser) {
+
+  const user = await User.findById(userId);
+  if (!user) {
     throw new AppError("User không tồn tại", 404);
   }
-  return updatedUser;
+
+  user.password = hashedPassword;
+  if (!user.providers?.some((p) => p.name === "local")) {
+    user.providers = [...(user.providers || []), { name: "local" }];
+  }
+
+  const updatedUser = await user.save();
+  return updatedUser.toObject({ getters: true, virtuals: false, versionKey: false, transform: (_doc, ret) => {
+    delete ret.password;
+    return ret;
+  }});
 };
 
 const clamp = (value, min, max) => {

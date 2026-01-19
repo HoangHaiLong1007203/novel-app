@@ -7,14 +7,30 @@ const {
   VNPAY_HASH_SECRET,
   VNPAY_RETURN_URL,
   VNPAY_API_URL,
+  FRONTEND_URL,
+  VNPAY_RETURN_PATH,
 } = process.env;
 
 /* ----------------------------------
    Utils
 ----------------------------------- */
 
+const buildDefaultReturnUrl = () => {
+  if (VNPAY_RETURN_URL) return VNPAY_RETURN_URL;
+  if (!FRONTEND_URL || !VNPAY_RETURN_PATH) return null;
+
+  const base = FRONTEND_URL.endsWith("/") ? FRONTEND_URL.slice(0, -1) : FRONTEND_URL;
+  const path = VNPAY_RETURN_PATH.startsWith("/")
+    ? VNPAY_RETURN_PATH
+    : `/${VNPAY_RETURN_PATH}`;
+  return `${base}${path}`;
+};
+
+export const resolveVnpayReturnUrl = () => buildDefaultReturnUrl();
+
 const ensureVnpayConfig = () => {
-  if (!VNPAY_TMN_CODE || !VNPAY_HASH_SECRET || !VNPAY_RETURN_URL || !VNPAY_API_URL) {
+  const defaultReturnUrl = buildDefaultReturnUrl();
+  if (!VNPAY_TMN_CODE || !VNPAY_HASH_SECRET || !defaultReturnUrl || !VNPAY_API_URL) {
     throw new AppError("Chưa cấu hình đầy đủ thông tin VNPAY", 500);
   }
 };
@@ -106,7 +122,7 @@ export const createVnpayPayment = ({
     vnp_OrderInfo: sanitizeOrderInfo(orderInfo || "Nap_xu"),
     vnp_OrderType: "other",
     vnp_Locale: "vn",
-    vnp_ReturnUrl: returnUrl || VNPAY_RETURN_URL,
+    vnp_ReturnUrl: returnUrl || buildDefaultReturnUrl(),
     vnp_IpAddr: ensureIPv4(clientIp),
     vnp_CreateDate: formatVnpayDate(now),
   };

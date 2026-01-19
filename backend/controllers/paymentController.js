@@ -8,7 +8,11 @@ import {
   constructWebhookEvent,
   hasStripeWebhookSecret,
 } from "../services/stripeService.js";
-import { createVnpayPayment, verifyVnpayReturn } from "../services/vnpayService.js";
+import {
+  createVnpayPayment,
+  resolveVnpayReturnUrl,
+  verifyVnpayReturn,
+} from "../services/vnpayService.js";
 
 const COIN_STEP = 10;
 const MIN_COINS = 10;
@@ -49,7 +53,7 @@ const buildOrderCode = (provider) => {
   return sanitizeOrderCode(base);
 };
 
-const resolveReturnUrl = (requestedUrl) => requestedUrl || process.env.VNPAY_RETURN_URL;
+const resolveReturnUrl = (requestedUrl) => requestedUrl || resolveVnpayReturnUrl();
 
 const getClientIp = (req) => {
   const header = req.headers["x-forwarded-for"];

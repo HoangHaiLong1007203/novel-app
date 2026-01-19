@@ -6,6 +6,9 @@ import { API } from "@/lib/api";
 import { useAuth } from "@/hook/useAuth";
 import NovelForm from "@/components/novel/NovelForm";
 import ChapterList from "@/components/novel/ChapterList";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/lib/toast";
+import { toastApiError } from "@/lib/errors";
 
 
 type NovelStatus = "còn tiếp" | "tạm ngưng" | "hoàn thành";
@@ -38,6 +41,7 @@ export default function UpdateNovelPage() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [chaptersAsc] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -95,6 +99,23 @@ export default function UpdateNovelPage() {
   if (loading) return <div className="min-h-[60vh] flex items-center justify-center">Đang tải...</div>;
   if (!novel) return <div className="min-h-[60vh] flex items-center justify-center">Không tìm thấy truyện.</div>;
 
+  const canDelete = Boolean(user && (user.role === "admin" || novel.poster?._id === user._id));
+  const handleDelete = async () => {
+    if (!canDelete || !id) return;
+    const confirmed = typeof window !== "undefined" && window.confirm("Bạn có chắc muốn xóa truyện này không?");
+    if (!confirmed) return;
+    setDeleting(true);
+    try {
+      await API.delete(`/api/novels/${id}`);
+      toast.success("Truyện đã được xóa");
+      router.back();
+    } catch (err) {
+      toastApiError(err, "Không thể xóa truyện");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-4">
 
@@ -102,8 +123,18 @@ export default function UpdateNovelPage() {
 
         {/* Left: NovelForm */}
         <div className="w-full lg:w-2/3">
-          <div className=" items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 gap-3">
             <h2 className="text-lg font-semibold">Sửa truyện: {novel.title}</h2>
+            {canDelete ? (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleting}
+              >
+                {deleting ? "Đang xóa..." : "Xóa truyện"}
+              </Button>
+            ) : null}
           </div>
           <NovelForm
             user={user}

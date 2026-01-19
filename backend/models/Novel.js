@@ -15,6 +15,8 @@ const novelSchema = new mongoose.Schema({
   views: { type: Number, default: 0 },
   commentsCount: { type: Number, default: 0 },
   averageRating: { type: Number, default: 0 }, // cập nhật sau từ review
+  isDeleted: { type: Boolean, default: false },
+  deletedAt: { type: Date, default: null },
 }, { timestamps: true });
 
 // Indexes to speed up normalized searches. Mongoose will create these indexes

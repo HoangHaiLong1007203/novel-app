@@ -8,7 +8,7 @@ import { useAuth } from "@/hook/useAuth";
 import { createTopupSession, type PaymentProvider } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { toastApiError } from "@/lib/errors";
-import { Button, Input, Label, Separator } from "@/components/ui";
+import { Button, Label, Separator } from "@/components/ui";
 
 const COIN_STEP = 10;
 const quickAmounts = [100, 200, 500, 1000];
@@ -37,7 +37,7 @@ const PROVIDERS: Array<{
 export default function TopupPage() {
   const { user } = useAuth();
   const router = useRouter();
-  const [coins, setCoins] = useState(100);
+  const [coins, setCoins] = useState(200);
   const [provider, setProvider] = useState<PaymentProvider>("stripe");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -46,7 +46,16 @@ export default function TopupPage() {
   const formattedVnd = useMemo(() => amountVnd.toLocaleString("vi-VN"), [amountVnd]);
 
   const handleAmountChange = (value: number) => {
-    if (value >= COIN_STEP) setCoins(value);
+    if (value < COIN_STEP) return;
+    if (provider === "stripe" && value === 100) return;
+    setCoins(value);
+  };
+
+  const handleProviderChange = (value: PaymentProvider) => {
+    setProvider(value);
+    if (value === "stripe" && coins === 100) {
+      setCoins(200);
+    }
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -57,8 +66,13 @@ export default function TopupPage() {
     }
     setIsSubmitting(true);
     try {
-      const fallbackReturn = typeof window !== "undefined" ? `${window.location.origin}/payments/payment-return` : undefined;
-      const returnUrl = process.env.NEXT_PUBLIC_PAYMENT_RETURN_URL || fallbackReturn;
+      const envFrontendUrl = process.env.NEXT_PUBLIC_FRONTEND_URL;
+      const envReturnPath = process.env.NEXT_PUBLIC_PAYMENT_RETURN_PATH;
+      const fallbackReturn =
+        typeof window !== "undefined" ? `${window.location.origin}/payments/payment-return` : undefined;
+      const returnUrl = envFrontendUrl && envReturnPath
+        ? `${envFrontendUrl.replace(/\/$/, "")}/${envReturnPath.replace(/^\//, "")}`
+        : fallbackReturn;
       const { redirectUrl } = await createTopupSession({ coins, provider, returnUrl });
       toast.success("Chuyển đến cổng thanh toán...");
       window.location.href = redirectUrl;
@@ -86,34 +100,29 @@ export default function TopupPage() {
           </p>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
-          <form className="space-y-5" onSubmit={handleSubmit}>
+        <div className="grid gap-6 md:grid-cols-2 items-start">
+          <form className="space-y-5 md:col-span-1" onSubmit={handleSubmit}>
             <div className="space-y-2">
-              <Label htmlFor="coins">Số xu muốn nạp</Label>
-              <Input
-                id="coins"
-                type="number"
-                min={COIN_STEP}
-                step={COIN_STEP}
-                value={coins}
-                onChange={(event) => handleAmountChange(Number(event.target.value))}
-                required
-              />
+              <Label>Số xu muốn nạp</Label>
               <p className="text-sm text-muted-foreground">Số xu phải là bội số của {COIN_STEP}.</p>
             </div>
 
             <div className="flex flex-wrap gap-2">
-              {quickAmounts.map((value) => (
+              {quickAmounts.map((value) => {
+                const isDisabled = provider === "stripe" && value === 100;
+                return (
                 <Button
                   type="button"
                   key={value}
                   variant={value === coins ? "default" : "outline"}
                   size="sm"
                   onClick={() => handleAmountChange(value)}
+                  disabled={isDisabled}
                 >
                   +{value.toLocaleString("vi-VN")} xu
                 </Button>
-              ))}
+                );
+              })}
             </div>
 
             <Separator />
@@ -125,7 +134,7 @@ export default function TopupPage() {
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => setProvider(item.id)}
+                    onClick={() => handleProviderChange(item.id)}
                     className={`rounded-xl border p-4 text-left transition ${
                       provider === item.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
                     }`}
@@ -144,19 +153,33 @@ export default function TopupPage() {
             </Button>
           </form>
 
-          <div className="space-y-4 rounded-2xl border bg-muted/40 p-5">
+          <div className="space-y-4 rounded-2xl border bg-muted/40 p-5 md:col-span-1">
             <div className="flex items-center gap-3">
               <Wallet className="size-10 text-primary" />
               <div>
-                <p className="text-sm text-muted-foreground">Số dư hiện tại</p>
-                <p className="text-2xl font-semibold">{(user?.coins ?? 0).toLocaleString("vi-VN")} xu</p>
+                <p className="text-sm text-muted-foreground">Hóa đơn thanh toán</p>
+                <p className="text-2xl font-semibold">{formattedVnd} VND</p>
+              </div>
+            </div>
+            <Separator />
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Số xu</span>
+                <span className="font-medium">{formattedCoins} xu</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Tỉ giá</span>
+                <span className="font-medium">1.000 VND = 10 xu</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Cổng thanh toán</span>
+                <span className="font-medium">{provider === "stripe" ? "Stripe" : "VNPAY"}</span>
               </div>
             </div>
             <Separator />
             <div>
-              <p className="text-sm text-muted-foreground">Giao dịch hiện tại</p>
-              <p className="text-lg font-semibold">{formattedCoins} xu</p>
-              <p className="text-sm text-muted-foreground">≈ {formattedVnd} VND</p>
+              <p className="text-sm text-muted-foreground">Số dư hiện tại</p>
+              <p className="text-lg font-semibold">{(user?.coins ?? 0).toLocaleString("vi-VN")} xu</p>
             </div>
             <div className="rounded-lg bg-background/70 p-3 text-sm text-muted-foreground">
               • Stripe: chuyển sang trang Checkout của Stripe.<br />• VNPAY: chuyển sang trang VNPAY để xác thực và thanh toán.

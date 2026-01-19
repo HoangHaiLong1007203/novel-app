@@ -248,7 +248,7 @@ export default function ProfilePage() {
   };
 
   const handleHistoryClick = () => {
-    toast("Lịch sử sẽ sớm khả dụng");
+    router.push("/me/profile/topup-history");
   };
 
   const handleNavigate = (href: string) => {
