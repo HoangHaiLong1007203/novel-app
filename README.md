@@ -15,6 +15,13 @@
 
 - Node.js v22.20.0
 - VSCode
+- Git
+
+Tạo 1 thư mục novel-app trên máy để chứa project, mở thư mục đó trong VSCode rồi mở 1 terminal và chạy lệnh sau để clone repo:
+```powershell
+git clone https://github.com/HoangHaiLong1007203/novel-app.git
+```
+Hoặc truy cập link github để tải file nén rồi giải nén trong thư mục novel-app: https://github.com/HoangHaiLong1007203/novel-app.git
 
 ---
 
