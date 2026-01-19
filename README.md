@@ -108,42 +108,31 @@ NEXT_PUBLIC_FRONTEND_URL=http://localhost:3000  #trong frontend2/.env.local.
 ---
 
 ## Demo — Screenshots
+Tài khoản & hồ sơ (Account & Profile)	
 
-Bạn có thể thêm ảnh màn hình (screenshots) vào README để demo giao diện.
+![Đăng nhập](frontend2/public/docs/đăng%20nhập.png)
+![Đăng kí](frontend2/public/docs/đăng%20kí.png)
 
-Hướng dẫn ngắn:
+Tra cứu truyện (Discovery)	
 
-- Tạo thư mục trong repo để chứa ảnh, ví dụ `docs/screenshots/` hoặc `public/screenshots/`.
-- Sao chép file ảnh vào thư mục đó (ví dụ `docs/screenshots/home.png`).
-- Thêm thẻ Markdown vào README để hiển thị ảnh, ví dụ:
+![Tìm kiếm](frontend2/public/docs/tìm%20kiếm.png)
+ 
+Đọc truyện (Reading)	
 
-```markdown
-![Home screen](docs/screenshots/home.png)
-```
+![Đọc truyện](frontend2/public/docs/đọc%20truyện.png)
 
-- Trong VSCode: copy ảnh vào thư mục, mở `README.md`, nhập `![](` rồi kéo thả ảnh vào editor — VSCode sẽ chèn đường dẫn tương đối.
-- Commit và push thay đổi:
+Tương tác bình luận/đánh giá (Interaction)	
 
-```powershell
-git add docs/screenshots/home.png README.md
-git commit -m "Add demo screenshot"
-git push
-```
+![Bình luận](frontend2/public/docs/bình%20luận.png)
 
-userabc@gmail.com
-password
+Quản lý truyện & chương (Content Management)	
 
+![Quản lí truyện](frontend2/public/docs/quản%20lí%20truyện.png)
 
-2.3. Tài khoản & hồ sơ (Account & Profile)	
+Thanh toán & giao dịch (Payments & Transactions)
 
-2.4. Tra cứu truyện (Discovery)	
+![Thanh toán](frontend2/public/docs/thanh%20toán.png)
 
-2.5. Đọc truyện (Reading)	
+Quản trị hệ thống (Administration)
 
-2.6. Tương tác bình luận/đánh giá (Interaction)	
-
-2.7. Quản lý truyện & chương (Content Management)	
-
-2.8. Thanh toán & giao dịch (Payments & Transactions)
-
-2.9. Quản trị hệ thống (Administration)
+![Quản trị hệ thống](frontend2/public/docs/quản%20trị%20hệ%20thống.png)
