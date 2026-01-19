@@ -2,16 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { API, fetchReaderSettings, markChapterAsRead } from "@/lib/api";
+import { API, fetchReaderSettings, markChapterAsRead, getNominationStatus, nominateNovel, giftChapter } from "@/lib/api";
 import ChapterHeader from "@/components/novel/ChapterHeader";
 import ChapterFooterActions from "@/components/novel/ChapterFooterActions";
 import ChapterReader from "@/components/novel/ChapterReader";
 import SettingsUI from "@/components/settings/settingsUI";
 import { ReaderSettingsPayload } from "@/lib/api";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ReportDialog from "@/components/report/ReportDialog";
 import { toast } from "@/lib/toast";
 import { useAuth } from "@/hook/useAuth";
+import { toastApiError } from "@/lib/errors";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface Chapter {
   _id: string;
@@ -24,9 +27,11 @@ interface Chapter {
   };
 }
 
+const NOMINATION_DAILY_LIMIT_DISPLAY = 5;
+
 export default function ChapterPage() {
   const { id, chapterId } = useParams();
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasPrev, setHasPrev] = useState(false);
@@ -45,6 +50,18 @@ export default function ChapterPage() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [dialogWidth, setDialogWidth] = useState<number | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
+  const [nominateOpen, setNominateOpen] = useState(false);
+  const [nominationStatus, setNominationStatus] = useState<{
+    limit: number;
+    usedToday: number;
+    remaining: number;
+    nominationCount?: number;
+  } | null>(null);
+  const [nominateCount, setNominateCount] = useState(1);
+  const [nominateLoading, setNominateLoading] = useState(false);
+  const [giftOpen, setGiftOpen] = useState(false);
+  const [giftCoins, setGiftCoins] = useState(10);
+  const [giftLoading, setGiftLoading] = useState(false);
 
   const localKey = "novel-app-reader-settings";
 
@@ -208,6 +225,105 @@ export default function ChapterPage() {
     setReportOpen(true);
   };
 
+  const loadNominationStatus = useCallback(async () => {
+    if (!normalizedNovelId || !user) return;
+    try {
+      const status = await getNominationStatus(normalizedNovelId);
+      setNominationStatus(status);
+    } catch (err) {
+      toastApiError(err, "Không thể tải trạng thái đề cử");
+    }
+  }, [normalizedNovelId, user]);
+
+  useEffect(() => {
+    if (!nominateOpen) return;
+    void loadNominationStatus();
+  }, [nominateOpen, loadNominationStatus]);
+
+  useEffect(() => {
+    if (!nominationStatus) return;
+    const remaining = nominationStatus.remaining ?? 0;
+    if (remaining <= 0) {
+      setNominateCount(0);
+      return;
+    }
+    setNominateCount((prev) => Math.min(Math.max(1, prev), remaining));
+  }, [nominationStatus]);
+
+  const handleOpenNominate = () => {
+    if (!user) {
+      toast.error("Vui lòng đăng nhập để đề cử");
+      return;
+    }
+    setNominateOpen(true);
+  };
+
+  const handleNominate = async () => {
+    if (!normalizedNovelId) return;
+    if (!nominationStatus || nominationStatus.remaining <= 0) {
+      toast.error("Bạn đã hết lượt đề cử hôm nay");
+      return;
+    }
+    if (!nominateCount || nominateCount <= 0) {
+      toast.error("Vui lòng chọn số lượt đề cử");
+      return;
+    }
+
+    setNominateLoading(true);
+    try {
+      const res = await nominateNovel(normalizedNovelId, nominateCount);
+      toast.success(res.message || "Đề cử thành công");
+      setNominationStatus({
+        limit: res.limit,
+        usedToday: res.usedToday,
+        remaining: res.remaining,
+        nominationCount: res.nominationCount,
+      });
+      setNominateOpen(false);
+    } catch (err) {
+      toastApiError(err, "Đề cử thất bại");
+    } finally {
+      setNominateLoading(false);
+    }
+  };
+
+  const handleOpenGift = () => {
+    if (!user) {
+      toast.error("Vui lòng đăng nhập để tặng quà");
+      return;
+    }
+    setGiftOpen(true);
+  };
+
+  const handleGift = async () => {
+    if (!normalizedChapterId) return;
+    if (!user) {
+      toast.error("Vui lòng đăng nhập để tặng quà");
+      return;
+    }
+
+    const coins = Number(giftCoins);
+    if (!Number.isFinite(coins) || coins <= 0) {
+      toast.error("Số xu không hợp lệ");
+      return;
+    }
+
+    setGiftLoading(true);
+    try {
+      const result = await giftChapter(normalizedChapterId, coins);
+      toast.success(result.message || "Cảm ơn bạn đã tặng quà!");
+      if (typeof result.coins === "number") {
+        setUser?.(user ? { ...user, coins: result.coins } : user);
+      }
+      setGiftOpen(false);
+      setGiftCoins(10);
+    } catch (error) {
+      toastApiError(error, "Không thể tặng quà");
+    } finally {
+      setGiftLoading(false);
+    }
+  };
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -303,9 +419,101 @@ export default function ChapterPage() {
         hasNext={hasNext}
         onPrev={() => prevId && router.push(`/novels/${id}/chapters/${prevId}`)}
         onNext={() => nextId && router.push(`/novels/${id}/chapters/${nextId}`)}
+        onInfo={() => router.push(`/novels/${id}`)}
         readerSettings={readerSettings}
         onReport={handleReport}
+        onNominate={handleOpenNominate}
+        onGift={handleOpenGift}
       />
+
+      <Dialog open={giftOpen} onOpenChange={setGiftOpen}>
+        {giftOpen && (
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Tặng quà</DialogTitle>
+              <DialogDescription>Nhập số xu bạn muốn tặng cho người đăng truyện.</DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  value={giftCoins}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value || "0", 10);
+                    if (!Number.isFinite(val)) return;
+                    setGiftCoins(Math.max(1, val));
+                  }}
+                />
+                <span className="text-sm">xu</span>
+              </div>
+              <p className="text-xs text-muted-foreground">Số dư hiện tại: {(user?.coins ?? 0).toLocaleString("vi-VN")} xu</p>
+            </div>
+
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setGiftOpen(false)}>
+                Hủy
+              </Button>
+              <Button onClick={handleGift} disabled={giftLoading}>
+                {giftLoading ? "Đang tặng..." : "Xác nhận"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
+
+      <Dialog open={nominateOpen} onOpenChange={setNominateOpen}>
+        {nominateOpen && (
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Đề cử truyện</DialogTitle>
+              <DialogDescription>
+                Mỗi ngày bạn có {nominationStatus?.limit ?? NOMINATION_DAILY_LIMIT_DISPLAY} lượt đề cử. Lượt chưa dùng sẽ không cộng dồn.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              {nominationStatus ? (
+                <p className="text-sm text-muted-foreground">
+                  Bạn còn <span className="font-semibold text-foreground">{nominationStatus.remaining}</span> lượt đề cử hôm nay.
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">Đang tải trạng thái đề cử...</p>
+              )}
+
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  max={Math.max(1, nominationStatus?.remaining ?? 1)}
+                  value={nominateCount}
+                  disabled={!nominationStatus || nominationStatus.remaining <= 0}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value || "0", 10);
+                    const remaining = nominationStatus?.remaining ?? 0;
+                    if (!Number.isFinite(val)) return;
+                    setNominateCount(Math.min(Math.max(1, val), Math.max(1, remaining)));
+                  }}
+                />
+                <span className="text-sm">phiếu</span>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setNominateOpen(false)}>
+                Hủy
+              </Button>
+              <Button
+                onClick={handleNominate}
+                disabled={nominateLoading || !nominationStatus || nominationStatus.remaining <= 0}
+              >
+                {nominateLoading ? "Đang đề cử..." : "Đề cử"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
 
       {/* Floating scroll buttons: go to top / go to bottom */}
       <div className="fixed right-6 bottom-6 z-50 flex flex-col gap-3">

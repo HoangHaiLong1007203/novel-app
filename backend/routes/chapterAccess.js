@@ -1,5 +1,5 @@
 import express from "express";
-import { getChapterById, getChapterAccess, purchaseChapter } from "../controllers/chapterController.js";
+import { getChapterById, getChapterAccess, purchaseChapter, giftChapter } from "../controllers/chapterController.js";
 import authMiddleware, { optionalAuth } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
@@ -12,5 +12,8 @@ router.get("/:chapterId/access", optionalAuth, getChapterAccess);
 
 // Mua chương bị khóa
 router.post("/:chapterId/purchase", authMiddleware, purchaseChapter);
+
+// Tặng xu cho người đăng truyện
+router.post("/:chapterId/gift", authMiddleware, giftChapter);
 
 export default router;

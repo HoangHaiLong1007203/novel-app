@@ -8,14 +8,21 @@ export interface Provider {
   providerId?: string;
 }
 
+export interface BankAccount {
+  bankName?: string;
+  accountNumber?: string;
+  accountHolder?: string;
+}
+
 export interface User {
   _id: string;
   username: string;
   email?: string;
   avatarUrl?: string;
   coins: number;
-   role?: "user" | "admin";
+  role?: "user" | "admin";
   providers: Provider[];
+  bankAccount?: BankAccount;
   createdAt?: string;
   updatedAt?: string;
 }

@@ -149,31 +149,31 @@ function LoginForm() {
     return () => window.removeEventListener("unhandledrejection", handler as EventListener);
   }, []);
 
-  function handleFBLogin() {
-    if (typeof window === "undefined") return;
-    const host = window.location.hostname;
-    const isLocal = host === "localhost" || host === "127.0.0.1";
-    if (!isLocal && window.location.protocol !== "https:") {
-      toast.error("Facebook login yêu cầu HTTPS. Vui lòng dùng HTTPS hoặc cấu hình trên Facebook.");
-      return;
-    }
+  // function handleFBLogin() {
+  //   if (typeof window === "undefined") return;
+  //   const host = window.location.hostname;
+  //   const isLocal = host === "localhost" || host === "127.0.0.1";
+  //   if (!isLocal && window.location.protocol !== "https:") {
+  //     toast.error("Facebook login yêu cầu HTTPS. Vui lòng dùng HTTPS hoặc cấu hình trên Facebook.");
+  //     return;
+  //   }
 
-    const FB = window.FB;
-    if (!FB) {
-      toast.error("Facebook SDK chưa sẵn sàng");
-      return;
-    }
+  //   const FB = window.FB;
+  //   if (!FB) {
+  //     toast.error("Facebook SDK chưa sẵn sàng");
+  //     return;
+  //   }
 
-    FB.login((response: { authResponse?: { accessToken?: string } }) => {
-      if (response && response.authResponse && response.authResponse.accessToken) {
-        void handleSocialLogin("facebook", { accessToken: response.authResponse.accessToken }).catch(() => {
-          toast.error("Đăng nhập Facebook thất bại");
-        });
-        } else {
-        toast.error("Facebook login bị hủy hoặc thất bại");
-      }
-    }, { scope: "email" });
-  }
+  //   FB.login((response: { authResponse?: { accessToken?: string } }) => {
+  //     if (response && response.authResponse && response.authResponse.accessToken) {
+  //       void handleSocialLogin("facebook", { accessToken: response.authResponse.accessToken }).catch(() => {
+  //         toast.error("Đăng nhập Facebook thất bại");
+  //       });
+  //       } else {
+  //       toast.error("Facebook login bị hủy hoặc thất bại");
+  //     }
+  //   }, { scope: "email" });
+  // }
 
   return (
     <div className="flex min-h-screen items-center justify-center">

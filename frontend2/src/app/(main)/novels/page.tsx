@@ -4,7 +4,7 @@ interface Novel {
   _id: string;
   title: string;
   author?: string | { username: string };
-  poster?: { username: string };
+  poster?: { _id?: string; username: string };
   coverImageUrl?: string;
   genres?: string[];
   status?: string;
@@ -34,9 +34,10 @@ async function fetchNovels(sortBy: string, limit: number = 7) {
 }
 
 export default async function NovelsPage() {
-  const [viewsNovels, reviewsNovels, completedNovels, updatedNovels] = await Promise.all([
+  const [viewsNovels, reviewsNovels, recommendationNovels, completedNovels, updatedNovels] = await Promise.all([
     fetchNovels("views_desc", 7),
     fetchNovels("reviews_desc", 7),
+    fetchNovels("recommendations_desc", 7),
     fetchNovels("completed_recent", 7),
     fetchNovels("updated_recent", 7),
   ]);
@@ -46,6 +47,8 @@ export default async function NovelsPage() {
       <NovelCarousel title="Nhiều lượt đọc" novels={viewsNovels} moreHref="/search?sortBy=views_desc" />
 
       <NovelCarousel title="Nhiều review" novels={reviewsNovels} moreHref="/search?sortBy=reviews_desc" />
+
+      <NovelCarousel title="Đề cử" novels={recommendationNovels} moreHref="/search?sortBy=recommendations_desc" />
 
       <NovelCarousel title="Mới hoàn thành" novels={completedNovels} moreHref="/search?sortBy=completed_recent" />
 

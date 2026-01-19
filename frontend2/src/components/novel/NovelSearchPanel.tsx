@@ -15,7 +15,7 @@ export interface NovelSearchItem {
   title: string;
   description?: string;
   author?: string | { username: string };
-  poster?: { username: string };
+  poster?: { _id?: string; username: string };
   coverImageUrl?: string;
   genres?: string[];
   status?: string;
@@ -220,7 +220,7 @@ export default function NovelSearchPanel({
         {novels.length === 0 ? (
           <p className="text-center text-muted-foreground mt-8">Không có kết quả.</p>
         ) : viewMode === "card" ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(152px,1fr))]">
             {novels.map((novel) => (
               <div key={novel._id} className={`relative ${renderActions ? "group" : ""}`}>
                 <NovelCard

@@ -40,7 +40,7 @@ interface Props {
 }
 
 export default function ChapterList({ chapters, mode = "read", novelId, initialAsc = true, onChangeChapters, onReport, onRequestDelete }: Props) {
-  const { user } = useAuth();
+  useAuth();
   const [asc, setAsc] = useState<boolean>(initialAsc);
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<(Chapter & { content?: string }) | null>(null);

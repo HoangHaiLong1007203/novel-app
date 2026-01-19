@@ -14,7 +14,7 @@ import type {
 const DEFAULT_QUERY: AdminTransactionQuery = {
   page: 1,
   limit: 20,
-  type: "topup",
+  type: "all",
 };
 
 type DatePreset = "all" | "7d" | "30d" | "90d";
@@ -37,7 +37,7 @@ const buildQueryParams = (raw: AdminTransactionQuery): AdminTransactionQuery => 
   const next: AdminTransactionQuery = {};
   if (typeof raw.page === "number") next.page = raw.page;
   if (typeof raw.limit === "number") next.limit = raw.limit;
-  if (raw.type) next.type = raw.type;
+  if (raw.type && raw.type !== "all") next.type = raw.type;
   if (raw.status && raw.status !== "all") next.status = raw.status;
   if (raw.provider && raw.provider !== "all") next.provider = raw.provider;
   if (raw.search) next.search = raw.search.trim();
@@ -126,7 +126,7 @@ export function useAdminTransactions(initial: Partial<AdminTransactionQuery> = {
   );
 
   const changeType = useCallback(
-    (type: AdminTransactionType) => {
+    (type: AdminTransactionType | "all") => {
       updateParams({ type });
     },
     [updateParams]

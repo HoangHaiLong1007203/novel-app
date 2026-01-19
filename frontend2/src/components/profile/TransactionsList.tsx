@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui";
+import { TransactionStatusBadge } from "@/components/admin/transactions/TransactionStatusBadge";
 import { fetchUserTransactions } from "@/lib/api";
 import { Pagination, PaginationContent, PaginationLink, PaginationItem } from "@/components/ui/pagination";
 
 export type TransactionItem = {
   _id: string;
-  type: "topup" | "purchase";
+  type: "topup" | "purchase" | "gift";
   provider?: "stripe" | "vnpay" | null;
   status: string;
   amount: number;
@@ -14,9 +15,11 @@ export type TransactionItem = {
   createdAt: string;
   novel?: { title?: string } | null;
   chapter?: { title?: string; chapterNumber?: number } | null;
+  direction?: "credit" | "debit";
+  metadata?: Record<string, unknown> | null;
 };
 
-export function TransactionsList({ type }: { type?: "topup" | "purchase" }) {
+export function TransactionsList({ type }: { type?: "topup" | "purchase" | "gift" }) {
   const [items, setItems] = useState<TransactionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -36,8 +39,10 @@ export function TransactionsList({ type }: { type?: "topup" | "purchase" }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{type === "purchase" ? "Lịch sử mở khóa" : "Lịch sử nạp"}</CardTitle>
-        <CardDescription>{type === "purchase" ? "Các chương bạn đã mở khóa" : "Các giao dịch nạp xu của bạn"}</CardDescription>
+        <CardTitle>{type === "purchase" ? "Lịch sử mở khóa" : "Lịch sử giao dịch"}</CardTitle>
+        <CardDescription>
+          {type === "purchase" ? "Các chương bạn đã mở khóa" : "Các giao dịch nạp xu và tặng quà của bạn"}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -50,20 +55,50 @@ export function TransactionsList({ type }: { type?: "topup" | "purchase" }) {
           <div className="text-sm text-muted-foreground">Không có lịch sử</div>
         ) : (
           <div className="flex flex-col gap-3">
-            {items.map((t) => (
-              <div key={t._id} className="flex items-center justify-between rounded-md border p-3">
-                <div className="flex flex-col">
-                  <div className="font-medium">
-                    {t.type === "topup" ? `Nạp ${t.amount.toLocaleString("vi-VN")} xu` : `Mua chương ${t.chapter?.chapterNumber ?? ""} — ${t.novel?.title ?? ""}`}
+            {items.map((t) => {
+              const amountText = `${t.amount.toLocaleString("vi-VN")} xu`;
+              const isGift = t.type === "gift";
+              const isCredit = t.direction
+                ? t.direction === "credit"
+                : t.type === "topup";
+              const sign = t.type === "topup" || (t.type !== "purchase" && isGift && isCredit)
+                ? "+"
+                : t.type === "purchase" && t.direction === "credit"
+                ? "+"
+                : t.type === "purchase" || (isGift && !isCredit)
+                ? "-"
+                : "";
+              const meta = (t.metadata || {}) as { fromUsername?: string; toUsername?: string };
+              const novelTitle = t.novel?.title ?? "";
+              const novelSuffix = novelTitle ? ` cho truyện ${novelTitle}` : "";
+
+              let title = "";
+              if (t.type === "topup") {
+                title = `Nạp ${amountText}`;
+              } else if (t.type === "purchase") {
+                const chapterLabel = t.chapter?.chapterNumber ? `chương ${t.chapter.chapterNumber}` : "chương";
+                title = t.direction === "credit"
+                  ? `Nhận ${amountText} từ ${meta.fromUsername ?? "độc giả"} cho ${chapterLabel} — ${novelTitle}`
+                  : `Mua ${chapterLabel} — ${novelTitle}`;
+              } else {
+                title = isCredit
+                  ? `Nhận ${amountText} từ ${meta.fromUsername ?? "độc giả"}${novelSuffix}`
+                  : `Tặng ${amountText}${novelSuffix}`;
+              }
+
+              return (
+                <div key={t._id} className="flex items-center justify-between rounded-md border p-3">
+                  <div className="flex flex-col">
+                    <div className="font-medium">{title}</div>
+                    <div className="text-xs text-muted-foreground mt-1">{new Date(t.createdAt).toLocaleString("vi-VN")}</div>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-1">{new Date(t.createdAt).toLocaleString("vi-VN")}</div>
+                  <div className="text-right text-sm flex flex-col items-end gap-2">
+                    <div className="font-semibold">{sign}{amountText}</div>
+                    <TransactionStatusBadge status={t.status} />
+                  </div>
                 </div>
-                <div className="text-right text-sm">
-                  <div className="font-semibold">{t.type === "topup" ? `${t.amount.toLocaleString("vi-VN")} xu` : `${t.amount.toLocaleString("vi-VN")} xu`}</div>
-                  <div className="text-xs text-muted-foreground">{t.status}</div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </CardContent>

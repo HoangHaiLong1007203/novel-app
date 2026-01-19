@@ -6,7 +6,7 @@ import type { AdminTransactionProvider, AdminTransactionStatus, AdminTransaction
 
 export type StatusFilterValue = AdminTransactionStatus | "all";
 export type ProviderFilterValue = AdminTransactionProvider | "all";
-export type TypeFilterValue = AdminTransactionType;
+export type TypeFilterValue = AdminTransactionType | "all";
 export type DatePresetValue = "all" | "7d" | "30d" | "90d";
 
 interface TransactionFiltersProps {
@@ -62,7 +62,10 @@ export function TransactionFilters(props: TransactionFiltersProps) {
 
   const resolvedStatuses: StatusFilterValue[] = ["all", ...((statusOptions ?? []) as AdminTransactionStatus[])];
   const resolvedProviders: ProviderFilterValue[] = ["all", ...((providerOptions ?? []) as AdminTransactionProvider[])];
-  const resolvedTypes: TypeFilterValue[] = typeOptions ?? (['topup', 'purchase'] as TypeFilterValue[]);
+  const resolvedTypes: TypeFilterValue[] = [
+    "all",
+    ...((typeOptions ?? ["topup", "purchase", "withdraw"]) as AdminTransactionType[]),
+  ];
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-2xl border p-4 shadow-sm">
@@ -90,7 +93,15 @@ export function TransactionFilters(props: TransactionFiltersProps) {
             <SelectContent>
               {resolvedTypes.map((type) => (
                 <SelectItem key={type} value={type}>
-                  {type === "topup" ? "Nạp xu" : "Mua chương"}
+                  {type === "all"
+                    ? "Tất cả"
+                    : type === "topup"
+                    ? "Nạp xu"
+                    : type === "purchase"
+                    ? "Mua chương"
+                    : type === "withdraw"
+                    ? "Rút xu"
+                    : "Tặng quà"}
                 </SelectItem>
               ))}
             </SelectContent>

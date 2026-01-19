@@ -22,6 +22,7 @@ const RANK_TYPES = [
   { key: "views_desc", label: "Lượt đọc" },
   { key: "comments_desc", label: "Bình luận" },
   { key: "reviews_desc", label: "Đánh giá" },
+  { key: "recommendations_desc", label: "Lượt đề cử" },
 ];
 
 interface Novel {
@@ -31,6 +32,7 @@ interface Novel {
   views?: number;
   commentsCount?: number;
   averageRating?: number;
+  nominationCount?: number;
 }
 
 
@@ -131,6 +133,9 @@ export default function ClientRanking() {
             }
             if (rankType === "reviews_desc") {
               return (b.averageRating ?? 0) - (a.averageRating ?? 0);
+            }
+            if (rankType === "recommendations_desc") {
+              return (b.nominationCount ?? 0) - (a.nominationCount ?? 0);
             }
             return 0;
           });

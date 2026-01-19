@@ -13,6 +13,7 @@ import {
   checkUsername,
   getReaderSettings,
   updateReaderSettings,
+  updateBankAccount,
 } from "../controllers/authController.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
 import { handleUpload } from "../middlewares/uploadMiddleware.js";
@@ -35,5 +36,6 @@ router.put("/change-username", authMiddleware, changeUsername);
 router.put("/change-password", authMiddleware, changePassword);
 router.get("/reader-settings", authMiddleware, getReaderSettings);
 router.put("/reader-settings", authMiddleware, updateReaderSettings);
+router.put("/bank-account", authMiddleware, updateBankAccount);
 
 export default router;

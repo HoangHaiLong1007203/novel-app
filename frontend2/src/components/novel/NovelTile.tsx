@@ -19,12 +19,12 @@ export default function NovelTile({ novel }: { novel: Novel }) {
   const handleAuthorClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     const name = typeof novel.author === "string" ? novel.author : novel.author?.username || "an-danh";
-    router.push(`/author/${encodeURIComponent(name)}`);
+    router.push(`/novels/by/author/${encodeURIComponent(name)}`);
   };
   const handlePosterClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     const posterId = novel.poster?._id || novel.poster?.username || null;
-    if (posterId) router.push(`/user/${encodeURIComponent(String(posterId))}`);
+    if (posterId) router.push(`/novels/by/poster/${encodeURIComponent(String(posterId))}`);
   };
 
   const authorName = typeof novel.author === "string" ? novel.author : novel.author?.username || "Ẩn danh";

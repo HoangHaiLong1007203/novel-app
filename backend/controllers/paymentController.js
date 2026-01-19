@@ -18,6 +18,7 @@ const COIN_STEP = 10;
 const MIN_COINS = 10;
 const MAX_COINS = 100000;
 const VND_PER_XU = 100;
+const WITHDRAW_VND_PER_XU = 80;
 const numberFormatter = new Intl.NumberFormat("vi-VN");
 
 const normalizeProvider = (value) => {
@@ -43,6 +44,7 @@ const ensureValidCoins = (coins) => {
 };
 
 const coinsToVnd = (coins) => coins * VND_PER_XU;
+const withdrawCoinsToVnd = (coins) => coins * WITHDRAW_VND_PER_XU;
 
 const sanitizeOrderCode = (value) => value.replace(/[^0-9a-z]/gi, "").toUpperCase().slice(-16);
 
@@ -101,6 +103,26 @@ const createTopupNotification = async (userId, transaction) => {
   });
 };
 
+const createWithdrawApprovedNotification = async (userId, transaction) => {
+  const amountXu = numberFormatter.format(transaction.amount);
+  const amountVnd = numberFormatter.format(transaction.amountVnd || withdrawCoinsToVnd(transaction.amount));
+  await Notification.create({
+    user: userId,
+    title: "Rút xu thành công",
+    message: `Yêu cầu rút ${amountXu} xu (~${amountVnd} VND) đã được phê duyệt.`,
+    type: "withdraw",
+  });
+};
+
+const createWithdrawRejectedNotification = async (userId, reason) => {
+  await Notification.create({
+    user: userId,
+    title: "Yêu cầu rút xu bị từ chối",
+    message: `Yêu cầu rút xu bị từ chối. Lý do: ${reason}`,
+    type: "withdraw",
+  });
+};
+
 const applyTopupSuccess = async ({ transaction, reason, providerPayload }) => {
   if (transaction.status === "success") {
     const userDoc = await User.findById(transaction.user).select("coins");
@@ -121,6 +143,30 @@ const applyTopupSuccess = async ({ transaction, reason, providerPayload }) => {
   }
   await transaction.save();
   await createTopupNotification(userDoc._id, transaction);
+  return { coins: userDoc.coins, alreadyCompleted: false };
+};
+
+const applyWithdrawSuccess = async ({ transaction, reason }) => {
+  if (transaction.status === "success") {
+    const userDoc = await User.findById(transaction.user).select("coins");
+    return { coins: userDoc?.coins ?? null, alreadyCompleted: true };
+  }
+
+  const userDoc = await User.findById(transaction.user);
+  if (!userDoc) {
+    throw new AppError("User không tồn tại", 404);
+  }
+  if (userDoc.coins < transaction.amount) {
+    throw new AppError("Số dư không đủ để rút xu", 400);
+  }
+
+  userDoc.coins -= transaction.amount;
+  await userDoc.save();
+
+  transaction.status = "success";
+  transaction.statusReason = reason || "Approved";
+  await transaction.save();
+  await createWithdrawApprovedNotification(userDoc._id, transaction);
   return { coins: userDoc.coins, alreadyCompleted: false };
 };
 
@@ -215,6 +261,53 @@ export const createPaymentSession = async (req, res, next) => {
       amountVnd,
       coins,
       redirectUrl,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createWithdrawRequest = async (req, res, next) => {
+  try {
+    const coins = ensureValidCoins(req.body.coins);
+    const bankAccount = req.body?.bankAccount || {};
+    const bankName = typeof bankAccount.bankName === "string" ? bankAccount.bankName.trim() : "";
+    const accountNumber = typeof bankAccount.accountNumber === "string" ? bankAccount.accountNumber.trim() : "";
+    const accountHolder = typeof bankAccount.accountHolder === "string" ? bankAccount.accountHolder.trim() : "";
+
+    if (!bankName || !accountNumber || !accountHolder) {
+      throw new AppError("Thiếu thông tin tài khoản ngân hàng", 400);
+    }
+
+    const userDoc = await User.findById(req.user.userId).select("coins");
+    if (!userDoc) {
+      throw new AppError("User không tồn tại", 404);
+    }
+    if (userDoc.coins < coins) {
+      throw new AppError("Số dư không đủ", 400);
+    }
+
+    const amountVnd = withdrawCoinsToVnd(coins);
+    const description = `Rút ${coins.toLocaleString("vi-VN")} xu (~${amountVnd.toLocaleString("vi-VN")} VND)`;
+
+    const transaction = await Transaction.create({
+      user: req.user.userId,
+      type: "withdraw",
+      direction: "debit",
+      amount: coins,
+      amountVnd,
+      provider: "system",
+      status: "pending",
+      description,
+      bankAccount: { bankName, accountNumber, accountHolder },
+      metadata: {},
+    });
+
+    res.json({
+      success: true,
+      transactionId: transaction._id,
+      amountVnd,
+      coins,
     });
   } catch (error) {
     next(error);
@@ -398,11 +491,14 @@ export const listTransactions = async (req, res, next) => {
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.min(Number(req.query.limit) || 20, 200);
     const allowedStatuses = ["success", "failed", "pending", "canceled"];
-    const allowedTypes = ["topup", "purchase"];
+    const allowedTypes = ["topup", "purchase", "gift", "withdraw"];
     const allowedProviders = ["stripe", "vnpay", "system"];
 
     const filter = {};
-    filter.type = allowedTypes.includes(req.query.type) ? req.query.type : "topup";
+    const rawType = typeof req.query.type === "string" ? req.query.type : "";
+    if (allowedTypes.includes(rawType)) {
+      filter.type = rawType;
+    }
 
     if (req.query.status && allowedStatuses.includes(req.query.status)) {
       filter.status = req.query.status;
@@ -449,6 +545,9 @@ export const listTransactions = async (req, res, next) => {
     if (!filter.status) {
       summaryMatch.status = "success";
     }
+    if (!filter.type) {
+      summaryMatch.type = { $in: ["topup", "withdraw"] };
+    }
     const providerMatch = { ...summaryMatch };
     const recentIssuesFilter = { ...filter };
     if (recentIssuesFilter.status) {
@@ -471,8 +570,20 @@ export const listTransactions = async (req, res, next) => {
         {
           $group: {
             _id: null,
-            totalVnd: { $sum: { $ifNull: ["$amountVnd", { $multiply: ["$amount", VND_PER_XU] }] } },
-            totalCoins: { $sum: "$amount" },
+            totalVnd: {
+              $sum: {
+                $cond: [
+                  { $eq: ["$type", "withdraw"] },
+                  { $multiply: [-1, { $ifNull: ["$amountVnd", { $multiply: ["$amount", VND_PER_XU] }] }] },
+                  { $ifNull: ["$amountVnd", { $multiply: ["$amount", VND_PER_XU] }] },
+                ],
+              },
+            },
+            totalCoins: {
+              $sum: {
+                $cond: [{ $eq: ["$type", "withdraw"] }, { $multiply: [-1, "$amount"] }, "$amount"],
+              },
+            },
             count: { $sum: 1 },
           },
         },
@@ -486,7 +597,15 @@ export const listTransactions = async (req, res, next) => {
         {
           $group: {
             _id: "$provider",
-            totalVnd: { $sum: { $ifNull: ["$amountVnd", { $multiply: ["$amount", VND_PER_XU] }] } },
+            totalVnd: {
+              $sum: {
+                $cond: [
+                  { $eq: ["$type", "withdraw"] },
+                  { $multiply: [-1, { $ifNull: ["$amountVnd", { $multiply: ["$amount", VND_PER_XU] }] }] },
+                  { $ifNull: ["$amountVnd", { $multiply: ["$amount", VND_PER_XU] }] },
+                ],
+              },
+            },
             count: { $sum: 1 },
           },
         },
@@ -559,19 +678,36 @@ export const adminResolveTransaction = async (req, res, next) => {
     let topupResult = null;
 
     if (normalizedStatus === "success") {
-      if (transaction.type !== "topup") {
-        throw new AppError("Chỉ hỗ trợ đánh dấu thành công cho giao dịch nạp xu", 400);
+      if (transaction.type === "topup") {
+        topupResult = await applyTopupSuccess({
+          transaction,
+          reason: note,
+          providerPayload: { adminAction: "resolve", executedAt: new Date().toISOString() },
+        });
+      } else if (transaction.type === "withdraw") {
+        topupResult = await applyWithdrawSuccess({
+          transaction,
+          reason: note,
+        });
+      } else {
+        throw new AppError("Chỉ hỗ trợ đánh dấu thành công cho giao dịch nạp xu hoặc rút xu", 400);
       }
-      topupResult = await applyTopupSuccess({
-        transaction,
-        reason: note,
-        providerPayload: { adminAction: "resolve", executedAt: new Date().toISOString() },
-      });
     } else {
-      await updateTransactionStatus(transaction, normalizedStatus, note, {
-        adminAction: "resolve",
-        executedAt: new Date().toISOString(),
-      });
+      if (transaction.type === "withdraw" && normalizedStatus === "failed") {
+        if (!reason || !String(reason).trim()) {
+          throw new AppError("Vui lòng nhập lý do từ chối", 400);
+        }
+        await updateTransactionStatus(transaction, normalizedStatus, note, {
+          adminAction: "resolve",
+          executedAt: new Date().toISOString(),
+        });
+        await createWithdrawRejectedNotification(transaction.user, note);
+      } else {
+        await updateTransactionStatus(transaction, normalizedStatus, note, {
+          adminAction: "resolve",
+          executedAt: new Date().toISOString(),
+        });
+      }
     }
 
     const payload = await buildAdminTransactionPayload(transactionId);
@@ -647,9 +783,16 @@ export const listUserTransactions = async (req, res, next) => {
     const limit = Math.min(Number(req.query.limit) || 50, 200);
 
     const query = { user: userId };
-    // Cho phép lọc theo type (topup|purchase)
+    // Cho phép lọc theo type (topup|purchase|gift)
     if (req.query.type) {
-      query.type = req.query.type;
+      const normalized = String(req.query.type);
+      if (normalized === "topup") {
+        query.type = { $in: ["topup", "gift"] };
+      } else if (["purchase", "gift"].includes(normalized)) {
+        query.type = normalized;
+      }
+    } else {
+      query.type = { $ne: "withdraw" };
     }
 
     const [items, total] = await Promise.all([

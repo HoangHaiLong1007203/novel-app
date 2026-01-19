@@ -3,6 +3,7 @@ import authMiddleware from "../middlewares/authMiddleware.js";
 import requireAdmin from "../middlewares/roleMiddleware.js";
 import {
   createPaymentSession,
+  createWithdrawRequest,
   confirmPayment,
   stripeWebhookHandler,
   listTransactions,
@@ -18,6 +19,9 @@ router.post("/create", authMiddleware, createPaymentSession);
 
 // POST /api/payments/confirm - authenticated
 router.post("/confirm", authMiddleware, confirmPayment);
+
+// POST /api/payments/withdraw - authenticated
+router.post("/withdraw", authMiddleware, createWithdrawRequest);
 
 // POST /api/payments/webhook/stripe - Stripe webhook (raw body parsing handled in server.js)
 router.post("/webhook/stripe", stripeWebhookHandler);

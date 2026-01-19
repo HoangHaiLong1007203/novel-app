@@ -17,6 +17,15 @@ const readerSettingsSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const bankAccountSchema = new mongoose.Schema(
+  {
+    bankName: { type: String, default: "" },
+    accountNumber: { type: String, default: "" },
+    accountHolder: { type: String, default: "" },
+  },
+  { _id: false }
+);
+
 // Schema chính cho user
 const userSchema = new mongoose.Schema(
   {
@@ -44,6 +53,8 @@ const userSchema = new mongoose.Schema(
 
     // Avatar URL
     avatarUrl: { type: String, default: "" },
+
+    bankAccount: { type: bankAccountSchema, default: () => ({}) },
 
     unlockedChapters: [{ type: mongoose.Schema.Types.ObjectId, ref: "Chapter" }],
 

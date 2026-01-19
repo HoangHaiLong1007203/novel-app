@@ -122,10 +122,13 @@ export default function NovelForm({ user, onSuccess, novelId, initial }: NovelFo
     try {
       const { data } = await API.get("/api/novels");
       const novels: Novel[] = data?.novels || [];
+      const titleKey = form.title.trim().toLowerCase();
+      const authorKey = form.author.trim().toLowerCase();
       const exists = novels.some(
         (n) =>
-          n.title.toLowerCase() === form.title.toLowerCase() &&
-          n.author.toLowerCase() === form.author.toLowerCase()
+          n.title.toLowerCase() === titleKey &&
+          n.author.toLowerCase() === authorKey &&
+          (!novelId || n._id !== novelId)
       );
       if (exists) {
         toast.error(`Truyện "${form.title}" bởi ${form.author} đã được đăng bởi người khác.`);

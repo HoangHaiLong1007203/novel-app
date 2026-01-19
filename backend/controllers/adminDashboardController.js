@@ -86,7 +86,7 @@ const buildRevenueDataset = async (days = 7) => {
   const rows = await Transaction.aggregate([
     {
       $match: {
-        type: "topup",
+        type: { $in: ["topup", "withdraw"] },
         status: "success",
         createdAt: { $gte: startDate },
       },
@@ -95,7 +95,18 @@ const buildRevenueDataset = async (days = 7) => {
       $group: {
         _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
         total: {
-          $sum: { $ifNull: ["$amountVnd", { $multiply: ["$amount", VND_PER_XU] }] },
+          $sum: {
+            $cond: [
+              { $eq: ["$type", "withdraw"] },
+              {
+                $multiply: [
+                  -1,
+                  { $ifNull: ["$amountVnd", { $multiply: ["$amount", VND_PER_XU] }] },
+                ],
+              },
+              { $ifNull: ["$amountVnd", { $multiply: ["$amount", VND_PER_XU] }] },
+            ],
+          },
         },
       },
     },
@@ -122,7 +133,18 @@ const sumRevenue = async (match) => {
       $group: {
         _id: null,
         total: {
-          $sum: { $ifNull: ["$amountVnd", { $multiply: ["$amount", VND_PER_XU] }] },
+          $sum: {
+            $cond: [
+              { $eq: ["$type", "withdraw"] },
+              {
+                $multiply: [
+                  -1,
+                  { $ifNull: ["$amountVnd", { $multiply: ["$amount", VND_PER_XU] }] },
+                ],
+              },
+              { $ifNull: ["$amountVnd", { $multiply: ["$amount", VND_PER_XU] }] },
+            ],
+          },
         },
       },
     },
@@ -161,9 +183,9 @@ const buildSummaryMetrics = async () => {
     buildDailyCounts(User),
     Chapter.countDocuments({ createdAt: { $gte: startOfToday } }),
     buildDailyCounts(Chapter),
-    sumRevenue({ type: "topup", status: "success", createdAt: { $gte: startOfToday } }),
-    sumRevenue({ type: "topup", status: "success", createdAt: { $gte: currentWeekStart } }),
-    sumRevenue({ type: "topup", status: "success", createdAt: { $gte: previousWeekStart, $lte: previousWeekEnd } }),
+    sumRevenue({ type: { $in: ["topup", "withdraw"] }, status: "success", createdAt: { $gte: startOfToday } }),
+    sumRevenue({ type: { $in: ["topup", "withdraw"] }, status: "success", createdAt: { $gte: currentWeekStart } }),
+    sumRevenue({ type: { $in: ["topup", "withdraw"] }, status: "success", createdAt: { $gte: previousWeekStart, $lte: previousWeekEnd } }),
     buildRevenueDataset(),
   ]);
 

@@ -5,6 +5,7 @@ import type {
   AdminTransactionProviderBreakdown,
   AdminTransactionStatusBreakdown,
   AdminTransactionSummary,
+  AdminTransactionType,
 } from "@/types/adminTransactions";
 
 const currencyFormatter = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" });
@@ -14,9 +15,10 @@ interface TransactionStatsProps {
   statusBreakdown?: AdminTransactionStatusBreakdown[];
   providerBreakdown?: AdminTransactionProviderBreakdown[];
   loading: boolean;
+  type?: AdminTransactionType | "all";
 }
 
-export function TransactionStats({ summary, statusBreakdown, providerBreakdown, loading }: TransactionStatsProps) {
+export function TransactionStats({ summary, statusBreakdown, providerBreakdown, loading, type }: TransactionStatsProps) {
   if (loading) {
     return (
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -31,23 +33,24 @@ export function TransactionStats({ summary, statusBreakdown, providerBreakdown, 
     );
   }
 
-  const totalCount = summary?.count ?? 0;
+  const totalCount = statusBreakdown?.reduce((acc, row) => acc + row.count, 0) ?? 0;
   const successCount = statusBreakdown?.find((row) => row.status === "success")?.count ?? 0;
   const pendingCount = statusBreakdown?.find((row) => row.status === "pending")?.count ?? 0;
   const successRate = totalCount ? (successCount / totalCount) * 100 : 0;
 
+  const isWithdraw = type === "withdraw";
   const cards = [
     {
       id: "revenue",
-      title: "Tổng doanh thu",
+      title: isWithdraw ? "Tổng tiền rút" : "Tổng doanh thu",
       value: currencyFormatter.format(summary?.totalVnd ?? 0),
       hint: `${(summary?.count ?? 0).toLocaleString("vi-VN")} giao dịch thành công`,
     },
     {
       id: "coins",
-      title: "Tổng xu phát hành",
+      title: isWithdraw ? "Tổng xu rút" : "Tổng xu phát hành",
       value: `${(summary?.totalCoins ?? 0).toLocaleString("vi-VN")} xu`,
-      hint: "Đã cộng vào ví người dùng",
+      hint: isWithdraw ? "Đã trừ khỏi ví người dùng" : "Đã cộng vào ví người dùng",
     },
     {
       id: "success",

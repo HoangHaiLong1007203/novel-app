@@ -41,7 +41,13 @@ export function RecentFailedTransactions({ transactions, loading }: RecentFailed
                   <TransactionStatusBadge status={tx.status} />
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  {tx.type === "topup" ? "Nạp xu" : "Mua chương"} • {currencyFormatter.format(tx.amountVnd ?? tx.amount * 100)}
+                  {tx.type === "topup"
+                    ? "Nạp xu"
+                    : tx.type === "purchase"
+                    ? "Mua chương"
+                    : tx.type === "withdraw"
+                    ? "Rút xu"
+                    : "Tặng quà"} • {currencyFormatter.format(tx.amountVnd ?? tx.amount * (tx.type === "withdraw" ? 80 : 100))}
                 </p>
                 {tx.statusReason ? <p className="text-xs text-rose-600">{tx.statusReason}</p> : null}
               </div>

@@ -6,13 +6,14 @@ import Link from "next/link";
 import React from "react";
 import { Card, CardContent, CardFooter, Badge, Button } from "@/components/ui";
 import { MessageCircle, Star, Eye, User, UploadCloud } from "lucide-react";
+import { getActiveGenreNames } from "@/lib/genreLookup";
 
 interface NovelCardProps {
   novel: {
     _id: string;
     title: string;
     author?: string | { username?: string };
-    poster?: { username?: string };
+    poster?: { _id?: string; username?: string };
     coverImageUrl?: string;
     genres?: string[];
     status?: string;
@@ -38,20 +39,30 @@ export default function NovelCard({ novel, mode = "read", onRead, onEdit }: Nove
   const handleCardClick = () => goToRead();
   const handleAuthorClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push(`/author/${encodeURIComponent(
-      typeof novel.author === "string" ? novel.author : novel.author?.username || "an-danh"
-    )}`);
+    const authorName =
+      typeof novel.author === "string"
+        ? novel.author
+        : novel.author?.username || "an-danh";
+    router.push(`/novels/by/author/${encodeURIComponent(authorName)}`);
   };
-  const handleGenreClick = (e: React.MouseEvent) => {
+  const handleGenreClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (novel.genres?.[0]) {
-      router.push(`/genre/${encodeURIComponent(novel.genres[0])}`);
+    const genre = novel.genres?.[0];
+    if (!genre) return;
+    const genreNames = await getActiveGenreNames();
+    if (genreNames.includes(genre)) {
+      const params = new URLSearchParams();
+      params.set("genres", genre);
+      params.set("page", "1");
+      router.push(`/search?${params.toString()}`);
+      return;
     }
+    router.push("/search");
   };
   const handlePosterClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const poster = novel.poster?.username || null;
-    if (poster) router.push(`/user/${encodeURIComponent(poster)}`);
+    const posterKey = novel.poster?._id ?? (novel.poster?.username || null);
+    if (posterKey) router.push(`/novels/by/poster/${encodeURIComponent(String(posterKey))}`);
   };
 
   const authorName =
@@ -63,7 +74,7 @@ export default function NovelCard({ novel, mode = "read", onRead, onEdit }: Nove
 
   return (
     <Card
-      className="relative overflow-hidden group hover:shadow-md transition-shadow cursor-pointer"
+      className="relative overflow-hidden group hover:shadow-md transition-shadow cursor-pointer py-0 min-w-[32.3vw] xs:min-w-[152px] sm:min-w-[137px] md:min-w-[152px] lg:min-w-[167px]"
       onClick={handleCardClick}
       tabIndex={0}
       role="button"

@@ -1,5 +1,5 @@
 export type AdminTransactionStatus = "success" | "failed" | "pending" | "canceled" | "unknown";
-export type AdminTransactionType = "topup" | "purchase";
+export type AdminTransactionType = "topup" | "purchase" | "gift" | "withdraw";
 export type AdminTransactionProvider = "stripe" | "vnpay" | "system" | "unknown";
 
 export interface AdminTransactionUser {
@@ -18,6 +18,12 @@ export interface AdminTransactionChapterInfo {
   chapterNumber?: number | null;
 }
 
+export interface AdminTransactionBankAccount {
+  bankName?: string | null;
+  accountNumber?: string | null;
+  accountHolder?: string | null;
+}
+
 export interface AdminTransactionItem {
   _id: string;
   type: AdminTransactionType;
@@ -29,6 +35,7 @@ export interface AdminTransactionItem {
   description?: string | null;
   statusReason?: string | null;
   metadata?: Record<string, unknown> | null;
+  bankAccount?: AdminTransactionBankAccount | null;
   createdAt: string;
   updatedAt?: string;
   user?: AdminTransactionUser | null;
@@ -84,7 +91,7 @@ export interface AdminTransactionQuery {
   limit?: number;
   status?: AdminTransactionStatus | "all";
   provider?: AdminTransactionProvider | "all";
-  type?: AdminTransactionType;
+  type?: AdminTransactionType | "all";
   search?: string;
   dateFrom?: string;
   dateTo?: string;

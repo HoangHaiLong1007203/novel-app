@@ -12,6 +12,8 @@ import { convertDocBufferToHtml } from "../utils/convertDocToHtml.js";
 
 const PRICE_DEFAULT = 10;
 const ACCESS_EXPIRES_SECONDS = 900; // 15 minutes
+const GIFT_MIN_COINS = 1;
+const GIFT_MAX_COINS = 100000;
 
 const ensureNovelExists = async (novelId) => {
   const novel = await Novel.findById(novelId).select("poster title");
@@ -54,6 +56,20 @@ const parseBooleanFlag = (value, defaultValue = false) => {
     if (value.toLowerCase() === "false" || value === "0") return false;
   }
   return Boolean(value);
+};
+
+const ensureGiftCoins = (coins) => {
+  const parsed = Number(coins);
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+    throw new AppError("Số xu không hợp lệ", 400);
+  }
+  if (parsed < GIFT_MIN_COINS) {
+    throw new AppError(`Số xu tối thiểu là ${GIFT_MIN_COINS}`, 400);
+  }
+  if (parsed > GIFT_MAX_COINS) {
+    throw new AppError(`Số xu tối đa cho mỗi lần tặng là ${GIFT_MAX_COINS.toLocaleString("vi-VN")}`, 400);
+  }
+  return parsed;
 };
 
 const fetchRequestUser = async (req, fields = "coins unlockedChapters readerSettings") => {
@@ -167,7 +183,11 @@ export const createChapter = async (req, res, next) => {
     }
 
     const novel = await ensureNovelExists(novelId);
-    ensurePosterPermission(novel, req.user.userId, "tạo");
+    const requester = await User.findById(req.user.userId).select("role");
+    const isAdmin = requester?.role === "admin";
+    if (!isAdmin) {
+      ensurePosterPermission(novel, req.user.userId, "tạo");
+    }
 
     const duplicate = await Chapter.findOne({ novel: novelId, chapterNumber });
     if (duplicate) {
@@ -257,7 +277,11 @@ export const updateChapter = async (req, res, next) => {
     }
 
     const novel = await ensureNovelExists(chapter.novel);
-    ensurePosterPermission(novel, req.user.userId, "cập nhật");
+    const requester = await User.findById(req.user.userId).select("role");
+    const isAdmin = requester?.role === "admin";
+    if (!isAdmin) {
+      ensurePosterPermission(novel, req.user.userId, "cập nhật");
+    }
 
     const updatedFields = {};
     if (req.body.chapterNumber !== undefined) {
@@ -414,6 +438,100 @@ export const getChapterAccess = async (req, res, next) => {
   }
 };
 
+export const giftChapter = async (req, res, next) => {
+  try {
+    const { chapterId } = req.params;
+    const coins = ensureGiftCoins(req.body?.coins);
+
+    const sender = await User.findById(req.user.userId).select("coins username");
+    if (!sender) {
+      return next(new AppError("Không có token", 401));
+    }
+
+    const chapter = await Chapter.findById(chapterId).populate("novel", "poster title");
+    if (!chapter) {
+      return next(new AppError("Chapter không tồn tại", 404));
+    }
+
+    const novelInfo = chapter.novel;
+    const posterId = novelInfo?.poster;
+    if (!posterId) {
+      return next(new AppError("Không tìm thấy người đăng truyện", 404));
+    }
+
+    if (posterId.toString() === sender._id.toString()) {
+      return next(new AppError("Bạn là chủ truyện, không thể tự tặng quà", 400));
+    }
+
+    if (sender.coins < coins) {
+      return next(new AppError("Số xu không đủ", 400));
+    }
+
+    const receiver = await User.findById(posterId).select("coins username");
+    if (!receiver) {
+      return next(new AppError("Người đăng truyện không tồn tại", 404));
+    }
+
+    sender.coins -= coins;
+    receiver.coins += coins;
+    await Promise.all([sender.save(), receiver.save()]);
+
+    const novelId = novelInfo?._id || chapter.novel;
+    const amountLabel = coins.toLocaleString("vi-VN");
+    const novelTitle = novelInfo?.title || "";
+
+    await Transaction.create([
+      {
+        user: sender._id,
+        type: "gift",
+        direction: "debit",
+        amount: coins,
+        provider: "system",
+        status: "success",
+        chapter: chapter._id,
+        novel: novelId,
+        description: `Tặng ${amountLabel} xu cho truyện ${novelTitle}`,
+        metadata: {
+          fromUser: sender._id,
+          toUser: receiver._id,
+          fromUsername: sender.username,
+          toUsername: receiver.username,
+        },
+      },
+      {
+        user: receiver._id,
+        type: "gift",
+        direction: "credit",
+        amount: coins,
+        provider: "system",
+        status: "success",
+        chapter: chapter._id,
+        novel: novelId,
+        description: `Nhận ${amountLabel} xu từ ${sender.username}`,
+        metadata: {
+          fromUser: sender._id,
+          toUser: receiver._id,
+          fromUsername: sender.username,
+          toUsername: receiver.username,
+        },
+      },
+    ]);
+
+    await Notification.create({
+      user: receiver._id,
+      title: "Nhận quà",
+      message: `${sender.username} đã tặng ${amountLabel} xu cho truyện ${novelTitle}.`,
+      type: "gift",
+      relatedNovel: novelId,
+      relatedChapter: chapter._id,
+    });
+
+    res.json({ message: "Cảm ơn bạn đã tặng quà!", coins: sender.coins });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const purchaseChapter = async (req, res, next) => {
   try {
     const { chapterId } = req.params;
@@ -444,17 +562,64 @@ export const purchaseChapter = async (req, res, next) => {
       return next(new AppError("Số xu không đủ", 400));
     }
 
+    const posterId = chapter.novel.poster;
+    const posterDoc = await User.findById(posterId).select("coins username");
+    if (!posterDoc) {
+      return next(new AppError("Người đăng truyện không tồn tại", 404));
+    }
+
     userDoc.coins -= priceXu;
     userDoc.unlockedChapters.push(chapter._id);
-    await userDoc.save();
+    posterDoc.coins += priceXu;
+    await Promise.all([userDoc.save(), posterDoc.save()]);
 
-    await Transaction.create({
-      user: userDoc._id,
-      type: "purchase",
-      amount: priceXu,
-      chapter: chapter._id,
-      novel: chapter.novel._id || chapter.novel,
-      status: "success",
+    const novelId = chapter.novel._id || chapter.novel;
+    const amountLabel = priceXu.toLocaleString("vi-VN");
+
+    await Transaction.create([
+      {
+        user: userDoc._id,
+        type: "purchase",
+        direction: "debit",
+        amount: priceXu,
+        chapter: chapter._id,
+        novel: novelId,
+        status: "success",
+        provider: "system",
+        description: `Mua chương ${chapter.chapterNumber} — ${chapter.title}`,
+        metadata: {
+          fromUser: userDoc._id,
+          toUser: posterDoc._id,
+          fromUsername: userDoc.username,
+          toUsername: posterDoc.username,
+        },
+      },
+      {
+        user: posterDoc._id,
+        type: "purchase",
+        direction: "credit",
+        amount: priceXu,
+        chapter: chapter._id,
+        novel: novelId,
+        status: "success",
+        provider: "system",
+        description: `Nhận ${amountLabel} xu từ ${userDoc.username}`,
+        metadata: {
+          fromUser: userDoc._id,
+          toUser: posterDoc._id,
+          fromUsername: userDoc.username,
+          toUsername: posterDoc.username,
+        },
+      },
+    ]);
+
+    await Notification.create({
+      user: posterDoc._id,
+      title: "Nhận xu",
+      message: `${userDoc.username} đã mở khóa chương ${chapter.chapterNumber} (${chapter.title}) và trả ${amountLabel} xu.`,
+      type: "info",
+      relatedNovel: novelId,
+      relatedChapter: chapter._id,
     });
 
     res.json({ message: "Mua chương thành công", coins: userDoc.coins, unlocked: true });

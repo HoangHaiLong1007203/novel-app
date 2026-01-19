@@ -144,3 +144,29 @@ export const updateReaderSettings = async (req, res, next) => {
     next(error);
   }
 };
+
+export const updateBankAccount = async (req, res, next) => {
+  try {
+    const { bankName, accountNumber, accountHolder } = req.body || {};
+    const trimmedBankName = typeof bankName === "string" ? bankName.trim() : "";
+    const trimmedAccountNumber = typeof accountNumber === "string" ? accountNumber.trim() : "";
+    const trimmedAccountHolder = typeof accountHolder === "string" ? accountHolder.trim() : "";
+
+    const isAllEmpty = !trimmedBankName && !trimmedAccountNumber && !trimmedAccountHolder;
+    if (!isAllEmpty && (!trimmedBankName || !trimmedAccountNumber || !trimmedAccountHolder)) {
+      throw new AppError("Vui lòng nhập đầy đủ thông tin tài khoản ngân hàng", 400);
+    }
+
+    const update = isAllEmpty
+      ? { bankAccount: { bankName: "", accountNumber: "", accountHolder: "" } }
+      : { bankAccount: { bankName: trimmedBankName, accountNumber: trimmedAccountNumber, accountHolder: trimmedAccountHolder } };
+
+    const user = await User.findByIdAndUpdate(req.user.userId, update, { new: true }).select("-password");
+    if (!user) {
+      throw new AppError("User không tồn tại", 404);
+    }
+    res.json({ message: "Đã cập nhật tài khoản ngân hàng", user });
+  } catch (error) {
+    next(error);
+  }
+};

@@ -7,9 +7,19 @@ import Bookmark from "../models/Bookmark.js";
 import ReadingProgress from "../models/ReadingProgress.js";
 import Notification from "../models/Notification.js";
 import Transaction from "../models/Transaction.js";
+import NominationLog from "../models/NominationLog.js";
 import AppError from "../middlewares/errorHandler.js";
 import { uploadToCloudinary } from "../services/uploadService.js";
 import { normalizeText } from "../utils/normalize.js";
+
+const NOMINATION_DAILY_LIMIT = 5;
+
+const getLocalDateKey = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 // Tạo truyện mới
 export const createNovel = async (req, res, next) => {
@@ -81,6 +91,10 @@ export const getNovels = async (req, res, next) => {
 
     const resolveSortStage = (value) => {
       switch (value) {
+        case "latest":
+          return { createdAt: -1, _id: 1 };
+        case "oldest":
+          return { createdAt: 1, _id: 1 };
         case "updated_recent":
           return { updatedAt: -1, _id: 1 };
         case "views_desc":
@@ -89,6 +103,8 @@ export const getNovels = async (req, res, next) => {
           return { commentsCount: -1, _id: 1 };
         case "reviews_desc":
           return { averageRating: -1, _id: 1 };
+        case "recommendations_desc":
+          return { nominationCount: -1, _id: 1 };
         case "completed_recent":
           return { updatedAt: -1, _id: 1 };
         default:
@@ -102,6 +118,8 @@ export const getNovels = async (req, res, next) => {
     }
     if (status) {
       filter.status = { $in: status.split(",") };
+    } else if (sortBy === "completed_recent") {
+      filter.status = { $in: ["hoàn thành"] };
     }
     if (type) {
       filter.type = { $in: type.split(",") };
@@ -110,7 +128,7 @@ export const getNovels = async (req, res, next) => {
       filter.genres = { $in: genres.split(",") };
     }
 
-    const requiresAggregate = ["reviews_desc", "comments_desc"].includes(sortBy);
+    const requiresAggregate = ["reviews_desc", "comments_desc", "mostChapters", "leastChapters"].includes(sortBy);
 
     // Use simple query when no chapter-range filters are provided and no aggregate-only sort is requested
     if (chapterMin === undefined && chapterMax === undefined && !requiresAggregate) {
@@ -168,7 +186,11 @@ export const getNovels = async (req, res, next) => {
     if (genres) filter.genres = { $in: genres.split(",") };
     if (author) filter.authorNormalized = normalizeText(String(author));
     if (poster) filter.poster = poster;
-    if (status) filter.status = { $in: status.split(",") };
+    if (status) {
+      filter.status = { $in: status.split(",") };
+    } else if (sortBy === "completed_recent") {
+      filter.status = { $in: ["hoàn thành"] };
+    }
     if (type) filter.type = { $in: type.split(",") };
 
     // Build aggregation pipeline
@@ -245,6 +267,18 @@ export const getNovels = async (req, res, next) => {
     let sortStage = { $sort: { createdAt: -1, _id: 1 } };
     if (sortBy) {
       switch (sortBy) {
+        case "latest":
+          sortStage = { $sort: { createdAt: -1, _id: 1 } };
+          break;
+        case "oldest":
+          sortStage = { $sort: { createdAt: 1, _id: 1 } };
+          break;
+        case "mostChapters":
+          sortStage = { $sort: { chapterCount: -1, _id: 1 } };
+          break;
+        case "leastChapters":
+          sortStage = { $sort: { chapterCount: 1, _id: 1 } };
+          break;
         case "updated_recent":
           sortStage = { $sort: { updatedAt: -1, _id: 1 } };
           break;
@@ -259,6 +293,9 @@ export const getNovels = async (req, res, next) => {
           break;
         case "completed_recent":
           sortStage = { $sort: { updatedAt: -1, _id: 1 } };
+          break;
+        case "recommendations_desc":
+          sortStage = { $sort: { nominationCount: -1, _id: 1 } };
           break;
         default:
           sortStage = { $sort: { createdAt: -1, _id: 1 } };
@@ -355,6 +392,83 @@ export const getNovelById = async (req, res, next) => {
   }
 };
 
+// Lấy trạng thái đề cử trong ngày của user
+export const getNominationStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const novel = await Novel.findOne({ _id: id, isDeleted: { $ne: true } }).select("nominationCount");
+    if (!novel) {
+      return next(new AppError("Truyện không tồn tại", 404));
+    }
+
+    const dateKey = getLocalDateKey();
+    const log = await NominationLog.findOne({ user: req.user.userId, dateKey });
+    const usedToday = log?.used ?? 0;
+    const remaining = Math.max(0, NOMINATION_DAILY_LIMIT - usedToday);
+
+    res.json({
+      limit: NOMINATION_DAILY_LIMIT,
+      usedToday,
+      remaining,
+      nominationCount: novel.nominationCount ?? 0,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Đề cử truyện
+export const nominateNovel = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const countRaw = req.body?.count;
+    const count = parseInt(String(countRaw ?? "1"), 10);
+
+    if (!Number.isFinite(count) || count <= 0) {
+      return next(new AppError("Số lượt đề cử không hợp lệ", 400));
+    }
+
+    const novel = await Novel.findOne({ _id: id, isDeleted: { $ne: true } });
+    if (!novel) {
+      return next(new AppError("Truyện không tồn tại", 404));
+    }
+
+    const dateKey = getLocalDateKey();
+    let log = await NominationLog.findOne({ user: req.user.userId, dateKey });
+    if (!log) {
+      log = await NominationLog.create({ user: req.user.userId, dateKey, used: 0 });
+    }
+
+    const remaining = NOMINATION_DAILY_LIMIT - log.used;
+    if (remaining <= 0) {
+      return next(new AppError("Bạn đã hết lượt đề cử hôm nay", 400));
+    }
+
+    if (count > remaining) {
+      return next(new AppError("Số lượt đề cử vượt quá giới hạn trong ngày", 400));
+    }
+
+    log.used += count;
+    await log.save();
+
+    const updatedNovel = await Novel.findByIdAndUpdate(
+      id,
+      { $inc: { nominationCount: count } },
+      { new: true }
+    );
+
+    res.json({
+      message: "Đề cử thành công",
+      limit: NOMINATION_DAILY_LIMIT,
+      usedToday: log.used,
+      remaining: Math.max(0, NOMINATION_DAILY_LIMIT - log.used),
+      nominationCount: updatedNovel?.nominationCount ?? novel.nominationCount ?? 0,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Cập nhật truyện
 export const updateNovel = async (req, res, next) => {
   try {
@@ -364,7 +478,9 @@ export const updateNovel = async (req, res, next) => {
       return next(new AppError("Truyện không tồn tại", 404));
     }
 
-    if (novel.poster.toString() !== req.user.userId) {
+    const requester = await User.findById(req.user.userId).select("role");
+    const isAdmin = requester?.role === "admin";
+    if (novel.poster.toString() !== req.user.userId && !isAdmin) {
       return next(new AppError("Bạn không có quyền cập nhật truyện này", 403));
     }
 
@@ -572,6 +688,9 @@ export const searchNovels = async (req, res, next) => {
       case "comments_desc":
         sortStage = { $sort: { commentsCount: -1, _id: 1 } };
         break;
+      case "recommendations_desc":
+        sortStage = { $sort: { nominationCount: -1, _id: 1 } };
+        break;
       case "completed_recent":
         sortStage = { $sort: { updatedAt: -1, _id: 1 } };
         break;
@@ -584,7 +703,7 @@ export const searchNovels = async (req, res, next) => {
     }
 
     // push sort, pagination and final projection
-    novelsPipeline.push(sortStage, { $skip: skip }, { $limit: l }, { $project: { _id: 1, title: 1, author: 1, description: 1, genres: 1, coverImageUrl: 1, poster: { username: 1 }, score: 1, status: 1, views: 1, commentsCount: 1, averageRating: 1, chapterCount: 1 } });
+    novelsPipeline.push(sortStage, { $skip: skip }, { $limit: l }, { $project: { _id: 1, title: 1, author: 1, description: 1, genres: 1, coverImageUrl: 1, poster: { _id: 1, username: 1 }, score: 1, status: 1, views: 1, commentsCount: 1, averageRating: 1, chapterCount: 1, nominationCount: 1 } });
 
     const novels = await Novel.aggregate(novelsPipeline);
     const totalPages = Math.ceil(total / l);

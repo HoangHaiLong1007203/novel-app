@@ -113,6 +113,16 @@ export async function removeBookmark(novelId: string) {
   return res.data;
 }
 
+export async function getNominationStatus(novelId: string) {
+  const res = await API.get(`/api/novels/${novelId}/nomination-status`);
+  return res.data as { limit: number; usedToday: number; remaining: number; nominationCount?: number };
+}
+
+export async function nominateNovel(novelId: string, count: number) {
+  const res = await API.post(`/api/novels/${novelId}/nominate`, { count });
+  return res.data as { message: string; limit: number; usedToday: number; remaining: number; nominationCount?: number };
+}
+
 export async function markChapterAsRead(params: {
   novelId: string;
   chapterId: string;
@@ -160,7 +170,21 @@ export async function purchaseLockedChapter(chapterId: string) {
   return res.data;
 }
 
+export async function giftChapter(chapterId: string, coins: number) {
+  const res = await API.post(`/api/chapters/${chapterId}/gift`, { coins });
+  return res.data as {
+    message?: string;
+    coins?: number;
+  };
+}
+
 export type PaymentProvider = "stripe" | "vnpay";
+
+export type BankAccountPayload = {
+  bankName: string;
+  accountNumber: string;
+  accountHolder: string;
+};
 
 export async function createTopupSession(payload: {
   coins: number;
@@ -192,6 +216,21 @@ export async function confirmTopup(payload: {
     message?: string;
     responseCode?: string;
   };
+}
+
+export async function createWithdrawRequest(payload: { coins: number; bankAccount: BankAccountPayload }) {
+  const res = await API.post("/api/payments/withdraw", payload);
+  return res.data as {
+    success: boolean;
+    transactionId: string;
+    amountVnd: number;
+    coins: number;
+  };
+}
+
+export async function updateBankAccount(payload: BankAccountPayload | null) {
+  const res = await API.put("/api/auth/bank-account", payload ?? {});
+  return res.data as { message: string; user: unknown };
 }
 
 export type ReportTargetType = "novel" | "chapter" | "comment" | "review" | "user" | "system";
@@ -246,14 +285,14 @@ export async function updateAdminReport(
   return res.data;
 }
 
-export async function fetchUserTransactions(page = 1, limit = 20, type?: "topup" | "purchase") {
+export async function fetchUserTransactions(page = 1, limit = 20, type?: "topup" | "purchase" | "gift") {
   const params: Record<string, unknown> = { page, limit };
   if (type) params.type = type;
   const res = await API.get("/api/payments/me", { params });
   return res.data as {
     transactions: Array<{
       _id: string;
-      type: "topup" | "purchase";
+      type: "topup" | "purchase" | "gift";
       provider?: PaymentProvider | null;
       status: string;
       amount: number;
@@ -262,6 +301,8 @@ export async function fetchUserTransactions(page = 1, limit = 20, type?: "topup"
       createdAt: string;
       novel?: { title?: string } | null;
       chapter?: { title?: string; chapterNumber?: number } | null;
+      direction?: "credit" | "debit";
+      metadata?: Record<string, unknown> | null;
     }>;
     pagination: { currentPage: number; totalPages: number; total: number; hasNextPage: boolean; hasPrevPage: boolean };
   };

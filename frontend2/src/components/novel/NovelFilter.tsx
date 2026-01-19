@@ -177,6 +177,7 @@ export default function NovelFilter(props: NovelFilterProps) {
               { value: "mostChapters", label: "Nhiều chương nhất" },
               { value: "leastChapters", label: "Ít chương nhất" },
               { value: "views_desc", label: "Nhiều lượt đọc" },
+              { value: "recommendations_desc", label: "Lượt đề cử" },
               { value: "reviews_desc", label: "Nhiều review" },
               { value: "completed_recent", label: "Mới hoàn thành" },
               { value: "updated_recent", label: "Mới cập nhật" },

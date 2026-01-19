@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import {
   ChevronsLeft,
-  Star,
+  Book,
   Gift,
   Flag,
   Ticket,
@@ -15,7 +15,10 @@ interface Props {
   hasNext?: boolean;
   onPrev?: () => void;
   onNext?: () => void;
+  onInfo?: () => void;
   onReport?: () => void;
+  onNominate?: () => void;
+  onGift?: () => void;
 }
 
 export default function ChapterFooterActions({
@@ -23,7 +26,10 @@ export default function ChapterFooterActions({
   hasNext = false,
   onPrev,
   onNext,
+  onInfo,
   onReport,
+  onNominate,
+  onGift,
   readerSettings,
 }: Props & { readerSettings?: import("@/lib/api").ReaderSettingsPayload }) {
   return (
@@ -43,14 +49,22 @@ export default function ChapterFooterActions({
           <span className="text-center truncate w-full">Chương trước</span>
         </Button>
 
-        {/* Chấm điểm */}
-        <Button variant="ghost" className="flex flex-col items-center justify-center gap-1 py-3 px-2 text-xs sm:text-sm min-h-[64px]">
-          <Star className="h-5 w-5" />
-          <span className="text-center truncate w-full">Chấm điểm</span>
+        {/* Thông tin */}
+        <Button
+          variant="ghost"
+          className="flex flex-col items-center justify-center gap-1 py-3 px-2 text-xs sm:text-sm min-h-[64px]"
+          onClick={onInfo}
+        >
+          <Book className="h-5 w-5" />
+          <span className="text-center truncate w-full">Thông tin</span>
         </Button>
 
         {/* Tặng quà */}
-        <Button variant="ghost" className="flex flex-col items-center justify-center gap-1 py-3 px-2 text-xs sm:text-sm min-h-[64px]">
+        <Button
+          variant="ghost"
+          className="flex flex-col items-center justify-center gap-1 py-3 px-2 text-xs sm:text-sm min-h-[64px]"
+          onClick={onGift}
+        >
           <Gift className="h-5 w-5" />
           <span className="text-center truncate w-full">Tặng quà</span>
         </Button>
@@ -66,7 +80,11 @@ export default function ChapterFooterActions({
         </Button>
 
         {/* Đề cử */}
-        <Button variant="ghost" className="flex flex-col items-center justify-center gap-1 py-3 px-2 text-xs sm:text-sm min-h-[64px]">
+        <Button
+          variant="ghost"
+          className="flex flex-col items-center justify-center gap-1 py-3 px-2 text-xs sm:text-sm min-h-[64px]"
+          onClick={onNominate}
+        >
           <Ticket className="h-5 w-5" />
           <span className="text-center truncate w-full">Đề cử</span>
         </Button>

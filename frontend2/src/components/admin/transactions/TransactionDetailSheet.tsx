@@ -33,6 +33,7 @@ export function TransactionDetailSheet({ transaction, open, onOpenChange, onTran
   const [adminNote, setAdminNote] = useState("");
   const [resolveLoading, setResolveLoading] = useState<ResolveStatus | null>(null);
   const [retryLoading, setRetryLoading] = useState(false);
+  const isWithdraw = transaction?.type === "withdraw";
 
   useEffect(() => {
     if (!open) {
@@ -46,7 +47,7 @@ export function TransactionDetailSheet({ transaction, open, onOpenChange, onTran
 
   const canMarkSuccess = useMemo(() => {
     if (!transaction) return false;
-    return transaction.type === "topup" && transaction.status !== "success";
+    return (transaction.type === "topup" || transaction.type === "withdraw") && transaction.status !== "success";
   }, [transaction]);
 
   const canMarkFailed = useMemo(() => {
@@ -61,6 +62,10 @@ export function TransactionDetailSheet({ transaction, open, onOpenChange, onTran
 
   const handleResolve = async (target: ResolveStatus) => {
     if (!transaction) return;
+    if (transaction.type === "withdraw" && target === "failed" && !adminNote.trim()) {
+      toast.error("Vui lòng nhập lý do từ chối");
+      return;
+    }
     setResolveLoading(target);
     try {
       const response = await resolveAdminTransaction(transaction._id, {
@@ -115,9 +120,24 @@ export function TransactionDetailSheet({ transaction, open, onOpenChange, onTran
               items={[
                 { label: "Người dùng", value: transaction.user?.username ?? "--" },
                 { label: "Email", value: transaction.user?.email ?? "--" },
-                { label: "Loại", value: transaction.type === "topup" ? "Nạp xu" : "Mua chương" },
+                {
+                  label: "Loại",
+                  value:
+                    transaction.type === "topup"
+                      ? "Nạp xu"
+                      : transaction.type === "purchase"
+                      ? "Mua chương"
+                      : transaction.type === "withdraw"
+                      ? "Rút xu"
+                      : "Tặng quà",
+                },
                 { label: "Số xu", value: `${transaction.amount.toLocaleString("vi-VN")} xu` },
-                { label: "Số tiền", value: currencyFormatter.format(transaction.amountVnd ?? transaction.amount * 100) },
+                {
+                  label: "Số tiền",
+                  value: currencyFormatter.format(
+                    transaction.amountVnd ?? transaction.amount * (transaction.type === "withdraw" ? 80 : 100)
+                  ),
+                },
                 { label: "Cổng", value: (transaction.provider || "--").toUpperCase() },
                 { label: "Order code", value: transaction.orderCode ?? "--" },
                 { label: "Mô tả", value: transaction.description ?? "--" },
@@ -125,7 +145,16 @@ export function TransactionDetailSheet({ transaction, open, onOpenChange, onTran
               ]}
             />
 
-            {transaction.type === "purchase" ? (
+            {transaction.type === "withdraw" ? (
+              <div className="space-y-2 rounded-xl border p-4">
+                <p className="text-sm font-semibold">Tài khoản ngân hàng</p>
+                <p className="text-sm text-muted-foreground">Ngân hàng: {transaction.bankAccount?.bankName ?? "--"}</p>
+                <p className="text-sm text-muted-foreground">Số tài khoản: {transaction.bankAccount?.accountNumber ?? "--"}</p>
+                <p className="text-sm text-muted-foreground">Chủ tài khoản: {transaction.bankAccount?.accountHolder ?? "--"}</p>
+              </div>
+            ) : null}
+
+            {transaction.type === "purchase" || transaction.type === "gift" ? (
               <div className="space-y-2 rounded-xl border p-4">
                 <p className="text-sm font-semibold">Thông tin chương</p>
                 <p className="text-sm text-muted-foreground">Truyện: {transaction.novel?.title ?? "--"}</p>
@@ -138,43 +167,65 @@ export function TransactionDetailSheet({ transaction, open, onOpenChange, onTran
             <div className="space-y-2 rounded-xl border p-4">
               <p className="text-sm font-semibold">Hành động admin</p>
               <Label htmlFor="admin-note" className="text-xs uppercase text-muted-foreground">
-                Ghi chú
+                {isWithdraw ? "Lý do" : "Ghi chú"}
               </Label>
               <Textarea
                 id="admin-note"
                 value={adminNote}
                 onChange={(event) => setAdminNote(event.target.value)}
-                placeholder="Thông tin hiển thị trong lịch sử giao dịch (tuỳ chọn)"
+                placeholder={isWithdraw ? "Nhập lý do (bắt buộc khi từ chối)" : "Thông tin hiển thị trong lịch sử giao dịch (tuỳ chọn)"}
                 rows={3}
               />
               <p className="text-xs text-muted-foreground">Ghi chú sẽ được lưu cùng trạng thái mới.</p>
               <div className="flex flex-wrap gap-2 pt-2">
-                <Button
-                  size="sm"
-                  onClick={() => handleResolve("success")}
-                  disabled={!canMarkSuccess || Boolean(resolveLoading) || retryLoading}
-                >
-                  {resolveLoading === "success" ? "Đang cập nhật..." : "Đánh dấu thành công"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={() => handleResolve("failed")}
-                  disabled={!canMarkFailed || Boolean(resolveLoading) || retryLoading}
-                >
-                  {resolveLoading === "failed" ? "Đang cập nhật..." : "Đánh dấu thất bại"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => handleResolve("canceled")}
-                  disabled={!canMarkFailed || Boolean(resolveLoading) || retryLoading}
-                >
-                  {resolveLoading === "canceled" ? "Đang cập nhật..." : "Huỷ giao dịch"}
-                </Button>
-                <Button size="sm" variant="outline" onClick={handleRetry} disabled={!canRetry || retryLoading || Boolean(resolveLoading)}>
-                  {retryLoading ? "Đồng bộ..." : "Đồng bộ Stripe"}
-                </Button>
+                {isWithdraw ? (
+                  <>
+                    <Button
+                      size="sm"
+                      onClick={() => handleResolve("success")}
+                      disabled={!canMarkSuccess || Boolean(resolveLoading) || retryLoading}
+                    >
+                      {resolveLoading === "success" ? "Đang cập nhật..." : "Phê duyệt rút xu"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleResolve("failed")}
+                      disabled={!canMarkFailed || Boolean(resolveLoading) || retryLoading}
+                    >
+                      {resolveLoading === "failed" ? "Đang cập nhật..." : "Từ chối yêu cầu"}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      size="sm"
+                      onClick={() => handleResolve("success")}
+                      disabled={!canMarkSuccess || Boolean(resolveLoading) || retryLoading}
+                    >
+                      {resolveLoading === "success" ? "Đang cập nhật..." : "Đánh dấu thành công"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleResolve("failed")}
+                      disabled={!canMarkFailed || Boolean(resolveLoading) || retryLoading}
+                    >
+                      {resolveLoading === "failed" ? "Đang cập nhật..." : "Đánh dấu thất bại"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => handleResolve("canceled")}
+                      disabled={!canMarkFailed || Boolean(resolveLoading) || retryLoading}
+                    >
+                      {resolveLoading === "canceled" ? "Đang cập nhật..." : "Huỷ giao dịch"}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={handleRetry} disabled={!canRetry || retryLoading || Boolean(resolveLoading)}>
+                      {retryLoading ? "Đồng bộ..." : "Đồng bộ Stripe"}
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
 

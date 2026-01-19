@@ -55,10 +55,20 @@ export function TransactionTable({ transactions, loading, onSelect }: Transactio
                       </p>
                     </td>
                     <td className="px-4 py-3 align-top border-r border-border/40">
-                      <p className="capitalize">{tx.type === "topup" ? "Nạp xu" : "Mua chương"}</p>
+                      <p className="capitalize">
+                        {tx.type === "topup"
+                          ? "Nạp xu"
+                          : tx.type === "purchase"
+                          ? "Mua chương"
+                          : tx.type === "withdraw"
+                          ? "Rút xu"
+                          : "Tặng quà"}
+                      </p>
                       <p className="text-xs text-muted-foreground">Cổng: {(tx.provider || "--").toUpperCase()}</p>
                       <p className="mt-2 text-xs font-semibold text-primary">{tx.amount.toLocaleString("vi-VN")} xu</p>
-                      <p className="text-xs text-muted-foreground">{currencyFormatter.format(tx.amountVnd ?? tx.amount * 100)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {currencyFormatter.format(tx.amountVnd ?? tx.amount * (tx.type === "withdraw" ? 80 : 100))}
+                      </p>
                     </td>
                     <td className="px-4 py-3 align-top border-r border-border/40">
                       <TransactionStatusBadge status={tx.status} />

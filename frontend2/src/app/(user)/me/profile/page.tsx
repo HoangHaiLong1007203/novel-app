@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { CreditCard, ShieldCheck, Coins, BellRing, History, Unlock, UserRound, Loader2, Eye, EyeOff } from "lucide-react";
+import { CreditCard, ShieldCheck, Coins, BellRing, History, Unlock, UserRound, Loader2, Eye, EyeOff, Landmark, ArrowDownToLine } from "lucide-react";
 
-import { useAuth } from "@/hook/useAuth";
-import { API } from "@/lib/api";
+import { useAuth, type User } from "@/hook/useAuth";
+import { API, updateBankAccount } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { toastApiError } from "@/lib/errors";
 import { Badge, Button, Input, Label, Separator, Skeleton } from "@/components/ui";
@@ -41,7 +41,7 @@ const SIDEBAR_ITEMS: ProfileSidebarItemConfig[] = [
   },
   {
     key: "topup-history",
-    label: "Lịch sử nạp",
+    label: "Lịch sử giao dịch",
     description: "Các giao dịch gần đây",
     href: "/me/profile/topup-history",
     icon: History,
@@ -60,6 +60,12 @@ const SIDEBAR_ITEMS: ProfileSidebarItemConfig[] = [
 interface PasswordFormState {
   newPassword: string;
   confirmPassword: string;
+}
+
+interface BankAccountFormState {
+  bankName: string;
+  accountNumber: string;
+  accountHolder: string;
 }
 
 const providerLabels: Record<string, string> = {
@@ -89,10 +95,23 @@ export default function ProfilePage() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
+  const [bankAccountForm, setBankAccountForm] = useState<BankAccountFormState>({
+    bankName: "",
+    accountNumber: "",
+    accountHolder: "",
+  });
+  const [bankAccountError, setBankAccountError] = useState<string | null>(null);
+  const [isSavingBankAccount, setIsSavingBankAccount] = useState(false);
+
   useEffect(() => {
     if (user) {
       setUsername(user.username ?? "");
       setEmail(user.email ?? "");
+      setBankAccountForm({
+        bankName: user.bankAccount?.bankName ?? "",
+        accountNumber: user.bankAccount?.accountNumber ?? "",
+        accountHolder: user.bankAccount?.accountHolder ?? "",
+      });
     }
   }, [user]);
 
@@ -253,6 +272,46 @@ export default function ProfilePage() {
     router.push("/me/profile/topup-history");
   };
 
+  const handleWithdrawClick = () => {
+    router.push("/me/withdraw");
+  };
+
+  const handleBankAccountChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = event.target;
+    setBankAccountForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleBankAccountSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmed = {
+      bankName: bankAccountForm.bankName.trim(),
+      accountNumber: bankAccountForm.accountNumber.trim(),
+      accountHolder: bankAccountForm.accountHolder.trim(),
+    };
+
+    if (!trimmed.bankName || !trimmed.accountNumber || !trimmed.accountHolder) {
+      const message = "Vui lòng nhập đầy đủ thông tin tài khoản ngân hàng";
+      setBankAccountError(message);
+      toast.error(message);
+      return;
+    }
+
+    try {
+      setIsSavingBankAccount(true);
+      const data = await updateBankAccount(trimmed);
+      if (data?.user) {
+        setUser(data.user as User);
+      }
+      setBankAccountError(null);
+      toast.success("Đã lưu tài khoản ngân hàng");
+    } catch (error) {
+      const message = toastApiError(error, "Không thể lưu tài khoản ngân hàng");
+      setBankAccountError(message);
+    } finally {
+      setIsSavingBankAccount(false);
+    }
+  };
+
   const handleNavigate = (href: string) => {
     router.push(href);
   };
@@ -402,6 +461,50 @@ export default function ProfilePage() {
                   </form>
                 </ProfileSectionCard>
 
+                <ProfileSectionCard title="Tài khoản ngân hàng" description="Lưu thông tin để rút xu nhanh hơn">
+                  <form className="space-y-5" onSubmit={handleBankAccountSubmit}>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="bankName">Ngân hàng</Label>
+                        <Input
+                          id="bankName"
+                          name="bankName"
+                          value={bankAccountForm.bankName}
+                          onChange={handleBankAccountChange}
+                          placeholder="VD: Vietcombank"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="accountNumber">Số tài khoản</Label>
+                        <Input
+                          id="accountNumber"
+                          name="accountNumber"
+                          value={bankAccountForm.accountNumber}
+                          onChange={handleBankAccountChange}
+                          placeholder="Nhập số tài khoản"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="accountHolder">Chủ tài khoản</Label>
+                      <Input
+                        id="accountHolder"
+                        name="accountHolder"
+                        value={bankAccountForm.accountHolder}
+                        onChange={handleBankAccountChange}
+                        placeholder="Họ và tên chủ tài khoản"
+                      />
+                    </div>
+                    {bankAccountError ? <p className="text-sm text-destructive">{bankAccountError}</p> : null}
+                    <div className="flex justify-end gap-2">
+                      <Button type="submit" disabled={isSavingBankAccount} className="gap-2">
+                        <Landmark className="size-4" />
+                        {isSavingBankAccount ? "Đang lưu..." : "Lưu tài khoản"}
+                      </Button>
+                    </div>
+                  </form>
+                </ProfileSectionCard>
+
                 <ProfileSectionCard title="Ví xu" description="Theo dõi số dư và nạp thêm khi cần" actionSlot={<Button type="button" variant="ghost" size="sm" onClick={handleHistoryClick}>Xem lịch sử</Button>}>
                   <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
                     <div>
@@ -412,10 +515,16 @@ export default function ProfilePage() {
                         <span className="text-sm text-muted-foreground">xu</span>
                       </div>
                     </div>
-                    <Button type="button" size="lg" className="gap-2" onClick={handleTopUpClick}>
-                      <CreditCard className="size-5" />
-                      Nạp xu
-                    </Button>
+                    <div className="flex flex-wrap gap-3">
+                      <Button type="button" size="lg" className="gap-2" onClick={handleTopUpClick}>
+                        <CreditCard className="size-5" />
+                        Nạp xu
+                      </Button>
+                      <Button type="button" size="lg" variant="outline" className="gap-2" onClick={handleWithdrawClick}>
+                        <ArrowDownToLine className="size-5" />
+                        Rút xu
+                      </Button>
+                    </div>
                   </div>
                 </ProfileSectionCard>
               </>

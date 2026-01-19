@@ -6,6 +6,8 @@ import {
   updateNovel,
   deleteNovel,
   searchNovels,
+  getNominationStatus,
+  nominateNovel,
 } from "../controllers/novelController.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
 import { handleCoverUpload } from "../middlewares/uploadMiddleware.js";
@@ -21,6 +23,12 @@ router.get("/search", searchNovels);
 
 // Lấy danh sách truyện (có thể lọc)
 router.get("/", getNovels);
+
+// Trạng thái đề cử trong ngày
+router.get("/:id/nomination-status", authMiddleware, getNominationStatus);
+
+// Đề cử truyện
+router.post("/:id/nominate", authMiddleware, nominateNovel);
 
 // Lấy chi tiết truyện
 router.get("/:id", getNovelById);

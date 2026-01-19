@@ -20,7 +20,7 @@ import type { AdminTransactionItem } from "@/types/adminTransactions";
 
 const STATUS_FILTER_VALUES: StatusFilterValue[] = ["success", "failed", "pending", "canceled", "unknown"];
 const PROVIDER_FILTER_VALUES: ProviderFilterValue[] = ["stripe", "vnpay", "system", "unknown"];
-const TYPE_FILTER_VALUES: TypeFilterValue[] = ["topup", "purchase"];
+const TYPE_FILTER_VALUES: TypeFilterValue[] = ["all", "topup", "purchase", "withdraw"];
 
 const normalizeStatusOptions = (values?: string[]): StatusFilterValue[] | undefined =>
   values?.filter((value): value is StatusFilterValue => STATUS_FILTER_VALUES.includes(value as StatusFilterValue));
@@ -90,7 +90,7 @@ export default function AdminTransactionsPage() {
     <section className="mx-auto w-full max-w-6xl px-4 py-10">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Giao dịch nạp xu</h1>
+          <h1 className="text-2xl font-semibold">Giao dịch hệ thống</h1>
           <p className="text-sm text-muted-foreground">Theo dõi doanh thu, tỷ lệ thành công và chi tiết từng giao dịch.</p>
         </div>
         <Button variant="outline" onClick={refresh} disabled={loading} className="gap-2">
@@ -111,7 +111,7 @@ export default function AdminTransactionsPage() {
           onSubmit={applySearch}
           statusValue={params.status ?? "all"}
           providerValue={params.provider ?? "all"}
-          typeValue={params.type ?? "topup"}
+          typeValue={params.type ?? "all"}
           datePreset={datePreset}
           statusOptions={normalizeStatusOptions(data?.filters.statuses)}
           providerOptions={normalizeProviderOptions(data?.filters.providers)}
@@ -129,6 +129,7 @@ export default function AdminTransactionsPage() {
           statusBreakdown={data?.statusBreakdown}
           providerBreakdown={data?.providerBreakdown}
           loading={loading}
+          type={params.type}
         />
 
         <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">

@@ -6,6 +6,7 @@ import { Badge, Button, Card } from "@/components/ui";
 import { User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { MouseEvent, ReactNode } from "react";
+import { getActiveGenreNames } from "@/lib/genreLookup";
 
 interface NovelRowProps {
   novel: {
@@ -43,13 +44,21 @@ export default function NovelRow({ novel, actions, onRowClick, mode = "read", on
   };
   const handleAuthorClick = (e: MouseEvent) => {
     e.stopPropagation();
-    router.push(`/author/${encodeURIComponent(novel.author || "an-danh")}`);
+    router.push(`/novels/by/author/${encodeURIComponent(novel.author || "an-danh")}`);
   };
-  const handleGenreClick = (e: MouseEvent) => {
+  const handleGenreClick = async (e: MouseEvent) => {
     e.stopPropagation();
-    if (novel.genres?.[0]) {
-      router.push(`/genre/${encodeURIComponent(novel.genres[0])}`);
+    const genre = novel.genres?.[0];
+    if (!genre) return;
+    const genreNames = await getActiveGenreNames();
+    if (genreNames.includes(genre)) {
+      const params = new URLSearchParams();
+      params.set("genres", genre);
+      params.set("page", "1");
+      router.push(`/search?${params.toString()}`);
+      return;
     }
+    router.push("/search");
   };
   return (
     <Card

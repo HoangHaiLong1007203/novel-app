@@ -119,8 +119,16 @@ readingProgressSchema.methods.addReadChapter = function(chapterId, timeSpent = 0
 // Method to calculate completion percentage
 readingProgressSchema.methods.calculateCompletionPercentage = function(totalChapters) {
   if (totalChapters > 0) {
-    this.completionPercentage = Math.round((this.totalChaptersRead / totalChapters) * 100);
+    const normalizedTotal = Math.max(0, totalChapters);
+    const normalizedRead = Math.min(this.readChapters.length, normalizedTotal);
+    this.totalChaptersRead = normalizedRead;
+    const rawPercentage = Math.round((normalizedRead / normalizedTotal) * 100);
+    this.completionPercentage = Math.min(100, Math.max(0, rawPercentage));
+    return this.completionPercentage;
   }
+
+  this.completionPercentage = 0;
+  this.totalChaptersRead = 0;
   return this.completionPercentage;
 };
 

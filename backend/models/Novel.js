@@ -15,6 +15,7 @@ const novelSchema = new mongoose.Schema({
   views: { type: Number, default: 0 },
   commentsCount: { type: Number, default: 0 },
   averageRating: { type: Number, default: 0 }, // cập nhật sau từ review
+  nominationCount: { type: Number, default: 0 },
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date, default: null },
 }, { timestamps: true });

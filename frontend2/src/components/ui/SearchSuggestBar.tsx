@@ -11,7 +11,7 @@ interface Novel {
   _id: string;
   title: string;
   author?: string;
-  poster?: { username?: string };
+  poster?: { _id?: string; username?: string };
   coverImageUrl?: string;
 }
 

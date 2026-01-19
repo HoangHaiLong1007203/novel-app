@@ -9,8 +9,12 @@ const transactionSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["topup", "purchase"], // nạp xu, mua chương
+      enum: ["topup", "purchase", "gift", "withdraw"], // nạp xu, mua chương, tặng quà, rút xu
       required: true,
+    },
+    direction: {
+      type: String,
+      enum: ["credit", "debit"],
     },
     amount: {
       type: Number,
@@ -28,6 +32,11 @@ const transactionSchema = new mongoose.Schema(
     orderCode: { type: String },
     description: { type: String },
     metadata: { type: mongoose.Schema.Types.Mixed },
+    bankAccount: {
+      bankName: { type: String },
+      accountNumber: { type: String },
+      accountHolder: { type: String },
+    },
     chapter: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Chapter",
