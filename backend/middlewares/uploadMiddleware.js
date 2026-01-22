@@ -17,8 +17,16 @@ const allowedMime = [
 ];
 
 // Images (avatar, cover) should accept common image types
-const allowedImageMime = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"];
-const allowedImageExt = ["png", "jpg", "jpeg", "webp", "gif", "svg"];
+// Add jfif support because some clients produce .jfif files
+const allowedImageMime = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "image/svg+xml",
+  "image/jfif",
+];
+const allowedImageExt = ["png", "jpg", "jpeg", "webp", "gif", "svg", "jfif"];
 
 const fileFilter = (req, file, cb) => {
   const mimetype = file.mimetype;

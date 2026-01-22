@@ -9,6 +9,9 @@ export const normalizeGenreName = (value = "") => {
     .filter(Boolean)
     .map((word) => {
       const lower = word.toLocaleLowerCase("vi-VN");
+      if (lower === "cp") {
+        return "CP";
+      }
       return lower.charAt(0).toLocaleUpperCase("vi-VN") + lower.slice(1);
     })
     .join(" ");

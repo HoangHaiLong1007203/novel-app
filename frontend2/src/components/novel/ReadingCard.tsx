@@ -34,15 +34,17 @@ export default function ReadingCard({ progress, onRemoved }: Props) {
   const novel = progress.novel! as NovelSummary;
   const [deleting, setDeleting] = useState(false);
   const [totalChapters, setTotalChapters] = useState<number | null>(null);
-  
+  const [firstChapterId, setFirstChapterId] = useState<string | null>(null);
   const [lastReadChapterId, setLastReadChapterId] = useState<string | null>(null);
+  const [validReadCount, setValidReadCount] = useState<number | null>(null);
   const [notifyEnabled, setNotifyEnabled] = useState<boolean>(false);
   const router = useRouter();
 
   // Determine the displayed progress based on position of last-read chapter
   const [displayIndex, setDisplayIndex] = useState<number | null>(null);
 
-  const readCount = progress.totalChaptersRead ?? progress.readChapters?.length ?? 0;
+  const rawReadCount = progress.totalChaptersRead ?? progress.readChapters?.length ?? 0;
+  const readCount = validReadCount ?? rawReadCount;
 
   const handleDelete = async () => {
     if (!novel._id) return;
@@ -67,6 +69,9 @@ export default function ReadingCard({ progress, onRemoved }: Props) {
         const fetchedChapters = res.data?.chapters || [];
         const normalized: Array<{ _id?: string; id?: string }> = Array.isArray(fetchedChapters) ? fetchedChapters : [];
         setTotalChapters(normalized.length);
+        const firstId = normalized.length ? (normalized[0]._id || normalized[0].id || null) : null;
+        setFirstChapterId(firstId ? String(firstId) : null);
+        const existingIdSet = new Set(normalized.map((c) => (c._id || c.id)?.toString()).filter(Boolean) as string[]);
 
         // Fetch detailed reading progress for this novel to determine last-read chapter
         try {
@@ -74,17 +79,47 @@ export default function ReadingCard({ progress, onRemoved }: Props) {
           if (!mounted) return;
           const rp = progRes.data?.readingProgress;
           setNotifyEnabled(!!rp?.notifyOnNewChapter);
-          // Prefer last reading session chapter if available
-          const sessionLast = rp?.readingSessions?.length ? rp.readingSessions[rp.readingSessions.length - 1]?.chapter : null;
-          const readChLast = rp?.readChapters?.length ? (rp.readChapters[rp.readChapters.length - 1]._id || rp.readChapters[rp.readChapters.length - 1]) : null;
-          const lastFromProgress = progress.readChapters?.length ? String(progress.readChapters[progress.readChapters.length - 1]) : null;
-          const lastId = sessionLast?.toString() || readChLast?.toString() || lastFromProgress;
-          setLastReadChapterId(lastId || null);
-          if (lastId) {
-            const idx = normalized.findIndex((c) => (c._id || c.id) === lastId);
-            if (idx >= 0) setDisplayIndex(idx + 1);
-            else setDisplayIndex(null);
+
+          const readIdSet = new Set<string>();
+          const readChapters = Array.isArray(rp?.readChapters) ? rp.readChapters : [];
+          for (const item of readChapters) {
+            const id = (item as { _id?: string })?._id || item;
+            const idStr = id?.toString();
+            if (idStr) readIdSet.add(idStr);
+          }
+          if (Array.isArray(progress.readChapters)) {
+            for (const item of progress.readChapters) {
+              const idStr = item?.toString();
+              if (idStr) readIdSet.add(idStr);
+            }
+          }
+
+          const validReadIds = new Set<string>();
+          for (const id of readIdSet) {
+            if (existingIdSet.has(id)) validReadIds.add(id);
+          }
+          setValidReadCount(validReadIds.size);
+
+          let lastValidId: string | null = null;
+          for (let i = normalized.length - 1; i >= 0; i -= 1) {
+            const chapterId = (normalized[i]._id || normalized[i].id)?.toString();
+            if (chapterId && validReadIds.has(chapterId)) {
+              lastValidId = chapterId;
+              break;
+            }
+          }
+
+          if (lastValidId) {
+            const idx = normalized.findIndex((c) => (c._id || c.id)?.toString() === lastValidId);
+            if (idx >= 0) {
+              setLastReadChapterId(lastValidId);
+              setDisplayIndex(idx + 1);
+            } else {
+              setLastReadChapterId(null);
+              setDisplayIndex(null);
+            }
           } else {
+            setLastReadChapterId(null);
             setDisplayIndex(null);
           }
         } catch {
@@ -118,7 +153,7 @@ export default function ReadingCard({ progress, onRemoved }: Props) {
             {displayIndex != null ? (
               <>Đã đọc {displayIndex}/{totalChapters ?? "?"} chương</>
             ) : (
-              <>Đã đọc {readCount}{totalChapters ? `/${totalChapters} chương` : " chương"}</>
+              <>Đã đọc {totalChapters ? Math.min(readCount, totalChapters) : readCount}{totalChapters ? `/${totalChapters} chương` : " chương"}</>
             )}
           </p>
         </div>
@@ -172,7 +207,7 @@ export default function ReadingCard({ progress, onRemoved }: Props) {
               {displayIndex != null ? (
                 <>Đã đọc {displayIndex}/{totalChapters ?? "?"} chương</>
               ) : (
-                <>Đã đọc {readCount}{totalChapters ? `/${totalChapters} chương` : " chương"}</>
+                <>Đã đọc {totalChapters ? Math.min(readCount, totalChapters) : readCount}{totalChapters ? `/${totalChapters} chương` : " chương"}</>
               )}
             </p>
           </div>
@@ -180,7 +215,10 @@ export default function ReadingCard({ progress, onRemoved }: Props) {
 
         <div className="mt-6 space-y-3">
           {/* If we know the last read chapter, go directly to it */}
-          <Link href={lastReadChapterId ? `/novels/${novel._id}/chapters/${lastReadChapterId}` : `/novels/${novel._id}`} className="block text-center py-3 rounded-lg bg-primary text-white">
+          <Link
+            href={lastReadChapterId || firstChapterId ? `/novels/${novel._id}/chapters/${lastReadChapterId || firstChapterId}` : `/novels/${novel._id}`}
+            className="block text-center py-3 rounded-lg bg-primary text-white"
+          >
             Đọc tiếp
           </Link>
 
